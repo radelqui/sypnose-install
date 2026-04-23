@@ -60,6 +60,31 @@ Fallback chain:
 
 ---
 
+## GOTCHAS CONTABO v6.2 (aprendidos en sesiones reales — 23-Abr-2026)
+
+1. **`workspace` va POR TASK, no al root del JSON**
+   Mithos ignora `workspace` al nivel raiz → usa `/home/gestoria` → error `broad directory`.
+   FIX: `"workspace": "/ruta/proyecto"` DENTRO de cada task del array `tasks[]`.
+
+2. **Mithos profile `executor` mapea a haiku en Contabo, NO kimi-k2.6**
+   Si no especificas `"model"`, usa haiku default. En Sypnose el profile mapea a kimi.
+   FIX: SIEMPRE pasar `"model": "kimi-k2.6"` o `"model": "gemini-2.5-flash"` explicito.
+
+3. **`max_tokens` bajo silencia el error — retorna content vacio sin warning**
+   Kimi-k2.6 es thinking model: consume 500-4000 tokens en `reasoning_content` ANTES de emitir `content`.
+   Con max_tokens bajo retorna `content: ""` sin error → worker dice `done` pero no hizo nada.
+   FIX: gemini-flash `max_tokens >= 500`; kimi-k2.6 `max_tokens >= 4096`.
+
+4. **Prompts deben ser IDEMPOTENTES (crítico)**
+   Si worker falla y relanzas, `Busca X y reemplaza con Y` sin guard aplica el cambio 2 veces → duplicados.
+   FIX: en cada CAMBIO añadir: `Si la cadena Y ya existe en el archivo, NO duplicar, reportar IDEMPOTENT_OK para este cambio`.
+
+5. **El verificador worker corre en workspace aislado**
+   `grep /ruta/archivo` dentro de un worker puede reportar NO_MATCH aunque el host si vea match.
+   FIX: el verificador final es GEMINI FLASH via dispatch con `workspace` igual al arquitecto, ejecutando comandos con round-trip al sistema real (curl HTTP, psql query, docker exec), NO grep a archivo local del sandbox.
+
+---
+
 ## PASO -1 — PRE-FLIGHT HEALTH CHECK (automatico, antes de TODO)
 
 Verificar que la infra esta viva. Si algo cae, PARAR — no trabajar sobre infra rota.
@@ -564,6 +589,16 @@ Al terminar TODAS las waves. No solo "done" — reporte con mejoras y descubrimi
 
 ### 6.0 ACCEPTANCE GATE (OBLIGATORIO — antes de declarar DONE)
 
+**REGLA ORO de verificacion (Contabo v6.2)**: el verificador es Gemini Flash via dispatch, NUNCA un worker que dice "VERIFIED". El Acceptance Gate es comando REAL + output LITERAL:
+- BD tocada → `docker exec supabase-db psql -U postgres -c 'SELECT ...'` + filas reales
+- Frontend tocado → `curl -s http://localhost:3000/ruta` + grep contenido esperado + screenshot si aplica
+- API tocada → `curl -s endpoint` + status + body
+- Archivo → `grep 'cadena' /ruta/absoluta` con output literal
+- Docker → `docker ps | grep nombre` + `curl health`
+- Deploy → `curl publico` + status 200
+
+Si el verificador no puede conectarse a la cosa real (filesystem aislado, sin red, sin psql), NO es verificador valido — dispatch otro con workspace/perms correctos.
+
 **¿El resultado entrega lo que Carlos pidio?** No "funciona el codigo", sino "se comporta como fue pedido".
 
 ```bash
@@ -603,6 +638,8 @@ boris_verify(
 **Boris v6.1 simplificado**: el Acceptance Gate del PASO 6.0 es LA verificacion real (comando ejecutado + output literal). boris_verify MCP es OPCIONAL — si el MCP no escribe `.brain/last-verification.md`, NO reintentar: Write tool crea el archivo directamente con Estado: APROBADO + output literal del comando.
 
 **Excepcion remote-only**: Si la tarea fue 100% GitHub API / curl remoto (sin commits locales), no hace falta `.brain/last-verification.md`. Usar `kb_save` con SHA GitHub + content-length como evidencia.
+
+**HOOKS BLOQUEANTES en Contabo (eliminados v6.2)**: el PreToolUse:Bash `boris-verification-gate.sh` se retiro del `.claude/settings.json` porque disparaba falsos positivos con la frase "git commit" dentro de heredocs/descripciones. El verificador real es Gemini Flash + Acceptance Gate con output literal, no un hook de texto. Los hooks que SI se mantienen (no bloquean, solo ayudan): SessionStart, PreCompact, Stop, boris-protect-files (Edit|Write sobre archivos criticos).
 
 **HOOK gate eliminado en Contabo**: el PreToolUse:Bash de `boris-verification-gate.sh` se retiro del `settings.json` (disparaba falsos positivos con la frase "git commit" en heredocs). El verificador real es Gemini Flash conectando a la cosa real (curl/SQL/browser), no un hook de texto.
 
@@ -734,6 +771,48 @@ rm -f /tmp/plan-[task].txt
 - [que funciono nuevo]
 - [que errores se evitaron]
 ```
+
+---
+
+## REGISTRO DE ERRORES GLOBAL CROSS-SERVER (Contabo + Sypnose)
+
+Todo error nuevo en CUALQUIER agente, en CUALQUIER servidor, se graba en un SOLO lugar compartido para que ningun arquitecto lo repita.
+
+### 3 sitios de grabado (todos obligatorios):
+
+1. **KB (Knowledge Hub)** — cross-project index:
+```
+kb_save
+  key=error-[AREA]-[servidor]-YYYYMMDD
+  category=lesson
+  project=global
+  value="[formato abajo]"
+```
+
+2. **Memory Palace** — semantic search cross-corpus:
+```bash
+curl -s -X POST http://localhost:18792/sypnose_add -H 'Content-Type: application/json' -d '{"params":{"wing":"global","room":"errores-aprendidos","content":"[formato abajo]","summary":"[1 linea del error]"}}'
+```
+
+3. **LightRAG** — ingesta auto cada 4h desde Memory Palace.
+
+### Formato obligatorio:
+```
+AREA: frontend | bd | workers | infra | api | hooks | deployment
+SERVIDOR: contabo | sypnose | ambos
+ERROR: [output literal copiado, no parafraseado]
+RAIZ: [por que paso — analisis de causa real]
+FIX: [comando/cambio concreto que lo resolvio]
+EVITAR: [regla 1 linea para no repetir]
+DESCUBIERTO: YYYY-MM-DD por [arquitecto]
+```
+
+### Consulta OBLIGATORIA antes de cada PASO 0.3:
+```bash
+kb_search "category=lesson project=global"
+curl -s -X POST http://localhost:18792/sypnose_search -H 'Content-Type: application/json' -d '{"params":{"query":"[tema]"}}'
+```
+Si encuentras error aplicable → leer FIX antes de seguir. Error repetido = rechazo automatico.
 
 ---
 
