@@ -45,18 +45,13 @@ ARQUITECTO (Opus) — planifica, dispatch directo, verifica, reporta
 | Workers EXECUTOR | Gemini Flash | CLIProxy :8317 | `gemini-2.5-flash` | rapido, no-thinking, 300 paralelo |
 | Workers complejos | Kimi K2.6 | CLIProxy :8317 | `kimi-k2.6` | thinking model — REQUIERE `max_tokens>=4096` o retorna vacio |
 | Gate | Gemini Flash | CLIProxy :8317 | `gemini-2.5-flash` | |
-| Verifier final | Gemini Flash Lite | CLIProxy :8317 | `gemini-2.5-flash-lite` | PASS/FAIL rapido |
+| Verifier final | Gemini Flash | CLIProxy :8317 | `gemini-2.5-flash` | PASS/FAIL con output literal |
 
-**REGLA ORO de max_tokens por modelo:**
-- `gemini-2.5-flash`: max_tokens 200+ suficiente
-- `gemini-2.5-flash-lite`: max_tokens 100+ suficiente
-- `kimi-k2.6`: **max_tokens >= 4096 OBLIGATORIO** (consume tokens en reasoning_content antes de responder; con <500 retorna content vacio aunque no haya error)
+**REGLA ORO de max_tokens por modelo (SOLO 2 modelos oficiales desde 23-Abr-2026):**
+- `gemini-2.5-flash`: max_tokens >= 500 suficiente
+- `kimi-k2.6`: **max_tokens >= 4096 OBLIGATORIO** (consume tokens en reasoning_content antes de responder; con <4096 retorna content vacio aunque no haya error)
 
-Fallback chain:
-- Workers: `gemini-2.5-flash` → `kimi-k2.6` (max_tokens 4096) → `gemini-2.5-flash-lite`
-- Verifiers/Gate: `gemini-2.5-flash` → `gemini-2.5-flash-lite`
-
-**PROHIBIDO**: Usar `kimi-k2` (no-2.6) o `kimi-for-coding` directo — no tienen auth. Usar siempre `kimi-k2.6`.
+**MODELOS UNICOS OFICIALES**: `kimi-k2.6` + `gemini-2.5-flash`. Todo lo demas (haiku, sonnet, deepseek, cerebras, qwen, gemini-pro, gemini-flash-lite, kimi-k2 sin .6, kimi-k2-0905, gpt-oss, gemini-2.0, gemini-3-*) esta DEPRECATED en CLIProxy y NO se debe usar. Si aparecen en dispatches = bug de Mithos ignorando el `"model"` specified.
 
 ---
 
@@ -890,24 +885,24 @@ channel_publish channel=system-alerts message="ERROR [AREA] [proyecto]: [descrip
 
 ### Workers (ejecutan codigo) — via CLIProxy :8317
 
-| Modelo | ID dispatch | Prioridad |
+| Modelo | ID dispatch | Uso |
 |---|---|---|
-| **Kimi K2.6** (PRIMARIO) | `kimi-k2.6` | Default para executors |
-| Kimi K2-0905 (fallback) | `kimi-k2-0905` | Si kimi-k2.6 falla |
-| DeepSeek V3.2 (fallback 2) | `deepseek-v3.2` | Ultimo recurso |
+| **Kimi K2.6** | `kimi-k2.6` | Workers complejos (editor de codigo). max_tokens >= 4096 |
 
 ### Gate y Verificadores — via CLIProxy :8317
 
 | Modelo | ID | Uso |
 |---|---|---|
-| **gemini-2.5-flash** (ACTIVO) | `gemini-2.5-flash` | Gate + Verifiers finales |
-| cerebras-llama-8b (fallback) | `cerebras-llama-8b` | Si Gemini Flash falla |
+| **Gemini 2.5 Flash** | `gemini-2.5-flash` | Gate + Verifiers finales + workers rapidos no-thinking. max_tokens >= 500 |
 
-### NO USAR
-- `kimi-for-coding` (sin prefijo, ya no funciona directamente via CLIProxy — usar `kimi-k2.6`)
-- Sonnet capataz (eliminado en v4)
-- qwen-* (504 permanente)
-- gemini-2.5-pro (cuota agotada)
+### NO USAR (DEPRECATED — desde 23-Abr-2026)
+Todos los siguientes siguen tecnicamente en CLIProxy `config.yaml` por compatibilidad de otros proyectos legacy, pero **no se usan** en sypnose-execute:
+- `kimi-k2` (sin .6), `kimi-k2-0905`, `kimi-for-coding` directo
+- `gemini-2.5-pro`, `gemini-2.5-flash-lite`, `gemini-2.0-*`, `gemini-3-*`, `gemini-web`
+- `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-sonnet-4-5`, `claude-3-5-haiku`, `claude-3-7-sonnet`
+- `deepseek-v3.2`, `deepseek-r1`, `cerebras-*`, `qwen*`, `gpt-oss-*`, `moonshotai/*`, `llama-*`
+
+Si un dispatch de Mithos retorna con `model_used` distinto a `kimi-k2.6` o `gemini-2.5-flash` → es bug de Mithos ignorando el `"model"` specified. Workaround: hacer `curl` directo a CLIProxy `:8317` con el modelo correcto, no dispatch.
 
 ---
 
