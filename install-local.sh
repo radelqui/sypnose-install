@@ -476,6 +476,8 @@ install_skills_and_hooks() {
         log_info "[DRY-RUN] haria: mkdir -p $claude_dir/skills/bios $claude_dir/skills/sypnose-create-plan"
         log_info "[DRY-RUN] haria: crear $claude_dir/skills/bios/SKILL.md"
         log_info "[DRY-RUN] haria: crear $claude_dir/skills/sypnose-create-plan/SKILL.md"
+        log_info "[DRY-RUN] haria: curl commands/sypnose-execute.md → $claude_dir/commands/sypnose-execute.md"
+        log_info "[DRY-RUN] haria: curl commands/sypnose-parl-score.md → $claude_dir/commands/sypnose-parl-score.md"
         return 0
     fi
 
@@ -501,7 +503,20 @@ SKILL_EOF
         log_info "Skill sypnose-create-plan ya existe, no sobreescrito"
     fi
 
-    INSTALLED+=("Skills (bios, sypnose-create-plan)")
+    # Install sypnose-execute v6 commands to ~/.claude/commands/ (global slash commands for Claude Code)
+    local COMMANDS_BASE="https://raw.githubusercontent.com/radelqui/sypnose-install/main/commands"
+    mkdir -p "$claude_dir/commands"
+    for cmd in sypnose-execute sypnose-parl-score; do
+        if $DRY_RUN; then
+            log_info "[DRY-RUN] haria: curl $COMMANDS_BASE/$cmd.md → $claude_dir/commands/$cmd.md"
+        elif curl -fsSL "$COMMANDS_BASE/$cmd.md" -o "$claude_dir/commands/$cmd.md" 2>/dev/null; then
+            log_ok "Command /$cmd instalado en $claude_dir/commands/"
+        else
+            log_warn "No se pudo descargar $cmd.md — instalar manualmente desde radelqui/sypnose-install/commands/"
+        fi
+    done
+
+    INSTALLED+=("Commands: sypnose-execute v6, sypnose-parl-score")
 }
 
 # ============================================================================
@@ -616,6 +631,7 @@ print_summary() {
     echo "=================================================="
     echo "  KB Hub:  ${KB_MODE}"
     echo "  Skills:  bios, sypnose-create-plan"
+    echo "  Commands: sypnose-execute v6, sypnose-parl-score (en ~/.claude/commands/)"
     echo "  MCP:     knowledge-hub"
     echo "  Reinicia Claude Code para activar."
     echo "=================================================="
