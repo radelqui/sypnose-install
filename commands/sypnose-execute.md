@@ -57,13 +57,22 @@ ARQUITECTO (Opus) — planifica, dispatch directo, verifica, reporta
 
 ## GOTCHAS CONTABO v6.2 (aprendidos en sesiones reales — 23-Abr-2026)
 
+0. **`"model"` REQUIERE prefijo `openai/` (BUG RESUELTO 23-Abr-2026)**
+   Mithos ignora `"model": "kimi-k2.6"` (sin prefijo) y cae a haiku default.
+   Con `"model": "openai/kimi-k2.6"` (CON prefijo) respeta el modelo pedido.
+   Test confirmado: dispatch con prefijo → `model_used=openai/kimi-k2.6` + output no vacio.
+   Dispatch sin prefijo → `model_used=openai/claude-haiku-4-5-20251001` + output mezclado.
+   FIX: SIEMPRE `"model": "openai/kimi-k2.6"` o `"model": "openai/gemini-2.5-flash"`.
+   Wrapper `mithos-dispatch-gated.sh` valida el prefijo antes del curl; sin el → exit 1.
+
+
 1. **`workspace` va POR TASK, no al root del JSON**
    Mithos ignora `workspace` al nivel raiz → usa `/home/gestoria` → error `broad directory`.
    FIX: `"workspace": "/ruta/proyecto"` DENTRO de cada task del array `tasks[]`.
 
 2. **Mithos profile `executor` mapea a haiku en Contabo, NO kimi-k2.6**
    Si no especificas `"model"`, usa haiku default. En Sypnose el profile mapea a kimi.
-   FIX: SIEMPRE pasar `"model": "kimi-k2.6"` o `"model": "gemini-2.5-flash"` explicito.
+   FIX: SIEMPRE pasar `"model": "openai/kimi-k2.6"` o `"model": "openai/gemini-2.5-flash"` explicito.
 
 3. **`max_tokens` bajo silencia el error — retorna content vacio sin warning**
    Kimi-k2.6 es thinking model: consume 500-4000 tokens en `reasoning_content` ANTES de emitir `content`.
@@ -429,7 +438,7 @@ cat > /tmp/wave-${WAVE_NUM}-exec.json <<'JSON_EOF'
       "profile": "executor",
       "description": "[INSTRUCCION EXACTA con CONTEXTO+ARCHIVO+ACCION+CAMBIO+VERIFICACION+SI FALLA]",
       "timeout_secs": 600,
-      "model": "kimi-k2.6"
+      "model": "openai/kimi-k2.6"
     }
   ]
 }
@@ -497,7 +506,7 @@ cat > /tmp/wave-${WAVE_NUM}-verify.json <<'JSON_EOF'
       "workspace": "/ruta/proyecto",
       "description": "Ejecuta EXACTAMENTE estos comandos y copia el output literal (no parafrasear):\n1. [comando 1: ej curl http://localhost:3000/api/foo]\n2. [comando 2: ej docker exec supabase-db psql -U postgres -c 'SELECT count(*) FROM bar']\n3. [comando 3: ej grep 'cadena esperada' /ruta/archivo]\n\nCopia output LITERAL. Luego reporta PASS si todos retornan lo esperado, FAIL si alguno no.",
       "timeout_secs": 300,
-      "model": "gemini-2.5-flash"
+      "model": "openai/gemini-2.5-flash"
     }
   ]
 }
