@@ -1,4 +1,4 @@
-# Sypnose v5.2 — Installer
+# Sypnose v6 — Installer
 
 One-line installer for Claude Code + Claude Desktop.
 
@@ -21,6 +21,7 @@ irm https://raw.githubusercontent.com/radelqui/sypnose-install/main/install-loca
 1. Detects your environment (Node.js, Git, Claude Code, Claude Desktop)
 2. Installs KB Hub (local knowledge base)
 3. Installs Sypnose skills (bios, sypnose-create-plan)
+4. Installs slash commands to `~/.claude/commands/`: `/sypnose-execute` v6, `/sypnose-parl-score`
 4. Configures MCP connection
 
 ## Dry Run (preview without changes)
@@ -40,6 +41,17 @@ Invoke-WebRequest -Uri https://raw.githubusercontent.com/radelqui/sypnose-instal
 - Node.js >= 18
 - Git
 - Claude Code CLI or Claude Desktop
+
+## For Claude Code Agents
+
+Tell Claude to install Sypnose on any server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/radelqui/sypnose-install/main/install-local.sh | bash
+```
+
+After installation, `/sypnose-execute` v6 is available as a slash command in Claude Code.
+For full server setup (Mithos Dispatch + workers), use `radelqui/sypnose` `install-sypnose-full.sh`.
 
 ## License
 
