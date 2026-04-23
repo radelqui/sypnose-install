@@ -18,6 +18,7 @@ Skill autocontenido. El arquitecto invoca y tiene TODO: principios, flujo, dispa
 
 ## PRINCIPIOS DE EJECUCION (Karpathy — LEER ANTES DE ACTUAR)
 
+**0. Velocity First (LEY DE ORO)** — Con Kimi K2.6, `max_parallel` SIEMPRE = 300 (limite confirmado por Kimi API). NUNCA uses 10 o 30 — son reliquias de cuando usabamos Sonnet. Si puedes enviar 300 workers, ENVIALOS. Velocidad es la primera orden.
 **1. Think Before Coding** — No asumir. Leer lo que existe antes de cambiar. Si hay duda, Wave 0 researcher.
 **2. Simplicity First** — Minimo codigo que resuelve el problema. Sin features extra, sin abstracciones prematuras.
 **3. Surgical Changes** — Tocar solo lo necesario. 1 worker = 1 archivo. No "mejorar" codigo adyacente.
@@ -30,11 +31,11 @@ Skill autocontenido. El arquitecto invoca y tiene TODO: principios, flujo, dispa
 
 ```
 ARQUITECTO (Opus) — planifica, dispatch directo, verifica, reporta
-  └→ WORKERS KIMI K2.6 via CLIProxy (Mithos :18810, 10-30 por wave) — ejecutan + auto-verifican + autocorrigen
+  └→ WORKERS KIMI K2.6 via CLIProxy (Mithos :18810, 300 por wave con Kimi K2.6) — ejecutan + auto-verifican + autocorrigen
        └→ VERIFIERS GEMINI FLASH via CLIProxy (solo si build/E2E requerido) — PASS/FAIL con output real
 ```
 
-**Capacidad**: 30+ workers simultaneos por dispatch.
+**Capacidad**: 300 workers simultaneos por dispatch con Kimi K2.6 (limite confirmado).
 **Regla de oro**: El arquitecto hace curl directo via `mithos-dispatch-gated.sh`. Workers tienen Boris Atomico embebido — se auto-verifican hasta 3 intentos, reportan DONE o FAILED.
 
 ### MODELOS FIJOS (ACTIVOS — v6)
@@ -222,6 +223,8 @@ BORIS: git pull origin main + git tag pre-[nombre]-[fecha]
 VERIFICACION: [comando bash concreto por wave]
 EVIDENCIA: [que archivos/outputs deben existir al terminar]
 CRITERIO: [comportamiento testeable desde perspectiva del usuario — ej: "GET /api/historial devuelve array con campo periodo", "boton Generar aparece en azul", "error 422 ya no ocurre al enviar el form"]
+> ❌ MAL: "el archivo ~/.claude/commands/X.md existe" (eso es EVIDENCIA tecnica, no CRITERIO)
+> ✅ BIEN: "el agente puede invocar /X sin configuracion adicional" (comportamiento testeable)
 ```
 
 **CRITERIO es la estrella del norte.** Es lo que Carlos pidio. Los archivos son medios, no el fin.
@@ -394,7 +397,7 @@ cat > /tmp/wave-${WAVE_NUM}-exec.json <<'JSON_EOF'
   "description": "Wave N — [nombre] executors",
   "workspace": "/ruta/proyecto",
   "keep_workspace": true,
-  "max_parallel": 30,
+  "max_parallel": 300,
   "tasks": [
     {
       "profile": "executor",
@@ -439,6 +442,8 @@ for r in data.get('results',[]):
 # Si TODOS dicen DONE → ir directo a 5.5 (sin verifier wave)
 # Si ALGUNO dice FAILED → VER 5.3b antes de dispatch debugger
 # Si tarea requiere build/E2E → dispatch verifier final (ver 5.4)
+# NOTA RTK: Si RTK trunca output de curl (curl ... | wc -l devuelve numero menor al real),
+# usar: curl ... -o /tmp/out.txt 2>/dev/null && wc -l /tmp/out.txt
 
 # 5.3b WORKER FAILED → git diff ANTES de debugger (estado del archivo es desconocido)
 # NUNCA mandar debugger sin saber en qué estado quedó el archivo
@@ -584,6 +589,8 @@ boris_verify(
 ```
 
 Sin boris_verify → hook bloquea git commit.
+
+**Excepcion remote-only**: Si la tarea fue 100% GitHub API (sin cambios locales en repo), boris_verify se omite. Usar kb_save con SHA de GitHub y tamano del archivo como evidencia.
 
 ### 6.2 Post-execution health check (auto-rollback si algo rompio)
 
