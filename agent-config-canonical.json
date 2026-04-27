@@ -1,0 +1,77 @@
+{
+  "_comment": "Sypnose v7 — Canonical MCP config for Claude Desktop / Claude Code. 23 tunnels HTTPS Cloudflare-routed across 2 servers. Auth via Cloudflare Access policy.",
+  "_version": "7.0.0-tunnels-270427",
+  "_updated": "2026-04-27",
+  "_servers": {
+    "sypnose-server": {
+      "vps": "62.171.147.46",
+      "role": "Frontend + KB cloud + Memory + LightRAG primary + claw-dispatch primary",
+      "tunnel_uuid": "aa228030-2b0d-4ee2-bc9a-1e990b87d7b9"
+    },
+    "contabo-server": {
+      "vps": "217.216.48.91",
+      "role": "GestoriaRD prod + DGII scraper + OpenClaw + ir2 + perplexity + claw-dispatch local",
+      "tunnel_uuid": "70258c97-46b0-4aa5-9a14-d50c96170173"
+    }
+  },
+  "mcpServers": {
+    "knowledge-hub": {
+      "_purpose": "KB shared cloud (read + write tasks/notifications/handoffs)",
+      "command": "npx",
+      "args": ["-y", "supergateway", "--sse", "https://kb.sypnose.cloud/sse"]
+    },
+    "sypnose-memory": {
+      "_purpose": "Semantic memory palace (12,482+ drawers)",
+      "command": "npx",
+      "args": ["-y", "supergateway", "--sse", "https://memory.sypnose.cloud/sse"]
+    },
+    "sypnose-hub": {
+      "_purpose": "SSE bus for cross-agent events",
+      "command": "npx",
+      "args": ["-y", "supergateway", "--sse", "https://hub.sypnose.cloud/sse"]
+    },
+    "sypnose-lightrag": {
+      "_purpose": "Knowledge graph (RAG over docs/code)",
+      "command": "npx",
+      "args": ["-y", "supergateway", "--sse", "https://lightrag.sypnose.cloud/sse"]
+    }
+  },
+  "_rest_apis": {
+    "_comment": "NOT MCPs. Direct HTTP/HTTPS endpoints. Use via fetch/curl from architect tasks.",
+    "sypnose-server": {
+      "sypnose.cloud": "web public",
+      "chat.sypnose.cloud": "chat UI",
+      "sse.sypnose.cloud": "SSE general",
+      "proxy.sypnose.cloud": "CLIProxyAPI - 46 LLMs gratis",
+      "claw.sypnose.cloud": "claw-dispatch /dispatch (workers Rust unified)"
+    },
+    "contabo-server": {
+      "oc.sypnose.cloud": "OpenClaw health-api :18790",
+      "kb217.sypnose.cloud": "KB local 217 :18791 (mirror DB)",
+      "mem217.sypnose.cloud": "sypnose-memory local :18792",
+      "lightragsse.sypnose.cloud": "LightRAG SSE local :18794",
+      "mithos.sypnose.cloud": "Mithos workers legacy :18810",
+      "claw217.sypnose.cloud": "claw-dispatch local Contabo :18830",
+      "gestoriard.sypnose.cloud": "GestoriaRD WAF :3080",
+      "sse217.sypnose.cloud": "sypnose-sse v5.2 :8095",
+      "cliproxy217.sypnose.cloud": "CLIProxyAPI :8317",
+      "perplexity.sypnose.cloud": "Perplexity proxy :8318",
+      "ir2.sypnose.cloud": "DGII IR-2 API :8319",
+      "ococliproxy.sypnose.cloud": "OpenClaw cliproxy :8320",
+      "dgii.sypnose.cloud": "DGII scraper API :8321",
+      "rag.sypnose.cloud": "DGII RAG :8322"
+    }
+  },
+  "_auth": {
+    "method": "Cloudflare Access",
+    "session": "24h",
+    "emails_authorized": "see Cloudflare Zero Trust dashboard (managed by Carlos)",
+    "sign_in": "Google"
+  },
+  "_notes": [
+    "On Linux/Mac: copy this to ~/.config/Claude/claude_desktop_config.json or ~/.claude.json mcpServers.",
+    "On Windows: copy to %APPDATA%/Claude/claude_desktop_config.json.",
+    "Cloudflare Access prompts Google sign-in first time per host. Session cookies persist 24h.",
+    "For automation, use service tokens (CF_Access_Client_Id + CF_Access_Client_Secret) instead of Google."
+  ]
+}
