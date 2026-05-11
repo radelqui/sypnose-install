@@ -1,0 +1,64 @@
+{
+  "name": "@sypnose/sypnose",
+  "version": "8.0.0",
+  "description": "Sypnose v8: A modular, agentic framework for complex task automation, integrating multiple knowledge and execution sources.",
+  "author": "Carlos De La Torre",
+  "mcpServers": [
+    { "name": "kb", "path": "mcp-kb/" },
+    { "name": "memory", "path": "mcp-memory/" },
+    { "name": "a2a", "path": "mcp-a2a/" },
+    { "name": "boris", "path": "mcp-boris/" },
+    { "name": "graphify", "path": "mcp-graphify/" },
+    { "name": "claw", "path": "mcp-claw/" }
+  ],
+  "skills": [
+    "skills/bios/SKILL.md",
+    "skills/sm-protocol/SKILL.md",
+    "skills/sypnose-execute/SKILL.md",
+    "skills/graphify/SKILL.md",
+    "skills/sypnose-create-plan-v2/SKILL.md"
+  ],
+  "commands": [
+    {
+      "name": "/sypnose.execute",
+      "description": "Execute a Sypnose task with a given profile.",
+      "skill": "sypnose-execute"
+    },
+    {
+      "name": "/sypnose.plan",
+      "description": "Create a new execution plan.",
+      "skill": "sypnose-create-plan-v2"
+    },
+    {
+      "name": "/sypnose.graphify",
+      "description": "Generate a graph from input data.",
+      "skill": "graphify"
+    },
+    {
+      "name": "/sypnose.sm",
+      "description": "Interact with the SM protocol.",
+      "skill": "sm-protocol"
+    }
+  ],
+  "post_install": [
+    {
+      "type": "health_check",
+      "name": "Verify MCP KB Health",
+      "command": "curl -s http://localhost:18791/health"
+    },
+    {
+      "type": "health_check",
+      "name": "Verify MCP Memory Palace Health",
+      "command": "curl -s http://localhost:18792/health"
+    },
+    {
+      "type": "health_check",
+      "name": "Verify OpenClaw Gateway Health",
+      "command": "curl -s http://localhost:18790/health"
+    }
+  ],
+  "env_required": [
+    "SYPNOSE_CF_CLIENT_ID",
+    "SYPNOSE_CF_CLIENT_SECRET"
+  ]
+}

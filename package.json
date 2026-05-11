@@ -1,0 +1,7 @@
+{
+  "name": "sypnose-v8-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ]
+}

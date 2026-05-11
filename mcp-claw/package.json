@@ -1,0 +1,20 @@
+{
+  "name": "mcp-claw",
+  "version": "1.0.0",
+  "description": "Sypnose Claw MCP Server",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "axios": "^1.16.0",
+    "express": "^4.22.2",
+    "supertest": "^7.2.2"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

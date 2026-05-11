@@ -1,0 +1,18 @@
+{
+  "name": "mcp-a2a",
+  "version": "1.0.0",
+  "description": "A2A MCP Server",
+  "main": "server.js",
+  "scripts": {
+    "test": "jest",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "axios": "^0.21.1"
+  },
+  "devDependencies": {
+    "jest": "^27.0.6",
+    "supertest": "^6.1.3"
+  }
+}
