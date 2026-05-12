@@ -1,7 +1,7 @@
 {
   "name": "@sypnose/sypnose",
-  "version": "8.0.0",
-  "description": "Sypnose v8: A modular, agentic framework for complex task automation, integrating multiple knowledge and execution sources.",
+  "version": "8.1.0",
+  "description": "Sypnose v8.1: modular agentic framework. Adds ssh-mcp multi-host (217 + 67) on top of v8.0.0.",
   "author": "Carlos De La Torre",
   "mcpServers": [
     { "name": "kb", "path": "mcp-kb/" },
@@ -9,7 +9,30 @@
     { "name": "a2a", "path": "mcp-a2a/" },
     { "name": "boris", "path": "mcp-boris/" },
     { "name": "graphify", "path": "mcp-graphify/" },
-    { "name": "claw", "path": "mcp-claw/" }
+    { "name": "claw", "path": "mcp-claw/" },
+    {
+      "name": "ssh-mcp",
+      "path": "mcp-ssh/",
+      "configurable_profiles": true,
+      "default_profiles": [
+        {
+          "name": "ssh-217",
+          "host": "217.216.48.91",
+          "port": 2024,
+          "user": "gestoria",
+          "key_env": "SYPNOSE_SSH_217_KEY",
+          "default_key": "~/.ssh/id_rsa"
+        },
+        {
+          "name": "ssh-67",
+          "host": "62.171.147.46",
+          "port": 2024,
+          "user": "sypnose",
+          "key_env": "SYPNOSE_SSH_67_KEY",
+          "default_key": "~/.ssh/id_ed25519_radelqui"
+        }
+      ]
+    }
   ],
   "skills": [
     "skills/bios/SKILL.md",
@@ -60,5 +83,17 @@
   "env_required": [
     "SYPNOSE_CF_CLIENT_ID",
     "SYPNOSE_CF_CLIENT_SECRET"
+  ],
+  "env_optional": [
+    {
+      "name": "SYPNOSE_SSH_217_KEY",
+      "description": "Path to SSH private key for ssh-217 host. Default: ~/.ssh/id_rsa",
+      "default": "~/.ssh/id_rsa"
+    },
+    {
+      "name": "SYPNOSE_SSH_67_KEY",
+      "description": "Path to SSH private key for ssh-67 host. Default: ~/.ssh/id_ed25519_radelqui",
+      "default": "~/.ssh/id_ed25519_radelqui"
+    }
   ]
 }

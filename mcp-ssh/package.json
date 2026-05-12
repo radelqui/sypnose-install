@@ -1,0 +1,10 @@
+{
+  "name": "@sypnose/mcp-ssh",
+  "version": "8.1.0",
+  "description": "Multi-host SSH wrapper around tufantunc/ssh-mcp (N instances by profile name)",
+  "license": "MIT",
+  "author": "Carlos De La Torre",
+  "dependencies": {
+    "ssh-mcp": "^1.5.0"
+  }
+}
