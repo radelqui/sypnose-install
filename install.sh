@@ -8,7 +8,7 @@ set -e
 # --- Configuration ---
 SYPNOSE_VERSION="v8.1.0"
 SYPNOSE_REPO="radelqui/sypnose-install"
-RELEASE_URL="https://github.com/${SYPNOSE_REPO}/releases/download/${SYPNOSE_VERSION}/sypnose-v8.1.tar.gz"
+RELEASE_URL="https://api.github.com/repos/${SYPNOSE_REPO}/tarball/refs/tags/${SYPNOSE_VERSION}"
 CLAUDE_DIR="$HOME/.claude"
 CLAUDE_JSON="$HOME/.claude.json"
 MCP_DIR="$CLAUDE_DIR/mcp-servers"

@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 # --- Configuration ---
 $SypnoseVersion = "v8.1.0"
 $SypnoseRepo    = "radelqui/sypnose-install"
-$ReleaseUrl     = "https://github.com/$SypnoseRepo/releases/download/$SypnoseVersion/sypnose-v8.1.tar.gz"
+$ReleaseUrl     = "https://api.github.com/repos/$SypnoseRepo/tarball/refs/tags/$SypnoseVersion"
 $ClaudeDir      = Join-Path $env:USERPROFILE ".claude"
 $ClaudeJson     = Join-Path $env:USERPROFILE ".claude.json"
 $McpDir         = Join-Path $ClaudeDir "mcp-servers"
