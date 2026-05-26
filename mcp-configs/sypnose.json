@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "sypnose": {
+      "type": "http",
+      "url": "http://62.171.147.46:18900/mcp",
+      "headers": {
+        "Authorization": "Bearer 21ff9b26fd454001328aaf60774f332d45138112f689af3a9b34de3dc5845589"
+      }
+    }
+  }
+}

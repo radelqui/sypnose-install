@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "name": "sypnose-memory-restore",
+        "description": "Restore session state from .brain/ on start",
+        "command": "bash ${CLAUDE_HOME:-~/.claude}/hooks/sypnose/session-start.sh",
+        "timeout": 10000
+      }
+    ],
+    "PreCompact": [
+      {
+        "name": "sypnose-memory-save",
+        "description": "Save session state before compaction",
+        "command": "bash ${CLAUDE_HOME:-~/.claude}/hooks/sypnose/pre-compact.sh",
+        "timeout": 10000
+      }
+    ],
+    "Stop": [
+      {
+        "name": "sypnose-memory-persist",
+        "description": "Auto-save progress and commit .brain/ on exit",
+        "command": "bash ${CLAUDE_HOME:-~/.claude}/hooks/sypnose/stop.sh",
+        "timeout": 15000,
+        "async": true
+      }
+    ]
+  }
+}
