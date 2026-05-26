@@ -35,6 +35,7 @@ user-invocable: true
 12. [PRE-TOOL GOVERNANCE](#pre-tool-governance) (ECC pattern — gates before execution)
 13. [INSTINCT SYSTEM](#instinct-system) (ECC pattern — continuous learning)
 14. [CROSS-HARNESS COMPATIBILITY](#cross-harness-compatibility) (Claude/Gemini/DeepSeek/Cursor)
+15. [REGISTRY](#registry) (auto-inventario APIs + código — Graphify + Scalar + OpenAPI)
 
 ---
 
@@ -782,6 +783,135 @@ Este skill funciona en CUALQUIER harness que soporte:
 | Workers (Gemini/DeepSeek) | Inline en prompt dispatch | Incluido en description del task |
 
 Para workers remotos, incluir las secciones relevantes del skill INLINE en el campo `description` del dispatch JSON. Los workers no tienen acceso a archivos locales.
+
+---
+
+## REGISTRY (auto-inventario de APIs + código)
+
+### Concepto
+Registry es la capa de Sypnose que mantiene un inventario VIVO del proyecto:
+cada API endpoint, cada tabla, cada función crítica — con sus relaciones.
+Se actualiza AUTOMÁTICAMENTE cada vez que un agente crea o modifica código.
+
+### Regla de Oro
+```
+SI CREAS UN ENDPOINT → SE REGISTRA
+SI MODIFICAS UN ENDPOINT → SE ACTUALIZA
+SI BORRAS UN ENDPOINT → SE ELIMINA
+SIN EXCEPCIÓN
+```
+
+### Cómo funciona
+
+**Auto-registro en FASE 6 (GUARDAR):**
+Después de verificar y antes de commit, el agente ejecuta el registro:
+
+```
+registry_update:
+  path: "/api/v2/clientes/[id]/route.ts"
+  method: GET, PUT, DELETE
+  params: { id: "string (UUID)" }
+  body: { nombre: "string", rnc: "string", ... }  # solo PUT
+  response: { cliente: {...}, status: 200 }
+  tables: ["clientes", "contactos"]
+  auth: "supervisor-jwt"
+  tags: ["clientes", "crud"]
+  changed_by: "gestoriard"
+  changed_at: "2026-05-26"
+```
+
+**Almacenamiento:**
+- `registry.json` en la raíz del proyecto — fuente de verdad
+- `openapi.yaml` auto-generado desde registry.json
+- KB: `kb_save key=registry-<proyecto>-latest`
+- Graphify: nodos API conectados al grafo de código
+
+**Consultas:**
+```
+/sypnose registry                    # resumen: N endpoints, N tablas, N funciones
+/sypnose registry apis               # lista todos los endpoints
+/sypnose registry search "clientes"  # busca endpoints que tocan clientes
+/sypnose registry impact "tabla X"   # qué se rompe si cambio tabla X
+/sypnose registry openapi            # genera/actualiza openapi.yaml
+/sypnose registry graph              # ejecuta Graphify con nodos API incluidos
+```
+
+### Schema del Registry (por endpoint)
+
+```yaml
+- path: "/api/v2/clientes/[id]/ficha-completa"
+  method: GET
+  params:
+    id: { type: string, required: true, description: "Client UUID" }
+  query:
+    include: { type: string, enum: [fiscal, contactos, socios, all] }
+  response:
+    200: { schema: { cliente: object, fiscal: object, contactos: array } }
+    404: { schema: { error: "Cliente no encontrado" } }
+    500: { schema: { error: string } }
+  tables: [clientes, contactos, socios, dgii_datos, credenciales_dgii]
+  functions: [getClienteFicha, getDGIIData, getContactos]
+  auth: supervisor-jwt
+  tags: [clientes, ficha, agregacion]
+  created: "2026-03-15"
+  updated: "2026-05-26"
+  owner: gestoriard
+```
+
+### Integración con el flujo Sypnose
+
+```
+FASE 4 (DESPACHAR) → agente implementa endpoint
+FASE 5 (VERIFICAR) → curl/test confirma que funciona
+FASE 6 (GUARDAR)   → REGISTRY UPDATE automático ← NUEVO
+                    → kb_save + memory_add (ya existía)
+                    → commit + push (ya existía)
+```
+
+El registry update es OBLIGATORIO en FASE 6 si:
+- Se creó un archivo en `/api/` o `/app/api/`
+- Se modificó un `route.ts` / `route.js`
+- Se cambió schema de BD que afecta responses
+- Se cambió auth/middleware que afecta endpoints
+
+### Integración con Graphify
+
+Graphify genera el grafo de código. Registry añade nodos de tipo API:
+
+```
+[API: GET /clientes/[id]] --calls--> [fn: getClienteFicha()]
+[fn: getClienteFicha()]   --reads--> [table: clientes]
+[fn: getClienteFicha()]   --reads--> [table: contactos]
+[API: POST /facturas/upload] --calls--> [fn: processOCR()]
+[fn: processOCR()]        --writes--> [table: facturas]
+```
+
+Comando: `/graphify --registry` incluye los nodos API del registry.json.
+
+### Integración con Scalar (docs visuales)
+
+Registry genera `openapi.yaml` → Scalar lo renderiza como docs interactivas:
+- Playground HTTP para probar endpoints
+- Agrupado por tags (clientes, dgii, dashboard, auth...)
+- Request/response examples reales
+
+Ruta en el SaaS: `/docs` o `/api-docs` (Scalar embebido via @scalar/nextjs-api-reference)
+
+### Bootstrap (proyecto existente sin registry)
+
+Para proyectos que ya tienen endpoints sin registrar:
+```
+/sypnose registry scan    # escanea todas las routes, genera registry.json inicial
+/sypnose registry audit   # compara registry.json vs routes reales, detecta gaps
+```
+
+El scan es lo que gestoriard está investigando ahora (Wave 1 del plan).
+
+### Anti-patterns
+- Crear endpoint sin registrar → FASE 6 lo rechaza
+- Registry desactualizado → `registry audit` detecta drift
+- Docs manuales separadas del código → PROHIBIDO, registry ES la doc
+- OpenAPI escrito a mano → PROHIBIDO, se genera desde registry.json
 
 ---
 
