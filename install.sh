@@ -19,8 +19,8 @@ else
 fi
 CLAUDE_HOME="$(cd "$CLAUDE_HOME" 2>/dev/null && pwd || echo "$HOME/.claude")"
 
-RULES_DIR="$CLAUDE_HOME/rules/sypnose"
-SKILLS_DIR="$CLAUDE_HOME/skills/sypnose"
+RULES_DIR="$CLAUDE_HOME/rules"
+SKILLS_DIR="$CLAUDE_HOME/skills"
 HOOKS_FILE="$CLAUDE_HOME/hooks.json"
 PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -113,21 +113,25 @@ MCPEOF
 install_rules() {
     log "Installing rules..."
     mkdir -p "$RULES_DIR"
-    cp "$PLUGIN_DIR/rules/"*.md "$RULES_DIR/" 2>/dev/null || true
-    debug "Rules -> $RULES_DIR"
+    for rule in "$PLUGIN_DIR/rules/"*.md; do
+        [[ -f "$rule" ]] || continue
+        cp "$rule" "$RULES_DIR/" 2>/dev/null || true
+        log "  Rule: $(basename "$rule")"
+    done
 }
 
 install_skills() {
     log "Installing skills..."
     mkdir -p "$SKILLS_DIR"
 
-    # Copy each skill directory
+    # Each skill folder goes directly to ~/.claude/skills/<skill-name>/
+    # This makes /sypnose, /graphify, etc. invocable as slash commands
     for skill_dir in "$PLUGIN_DIR/skills/"*/; do
         [[ -d "$skill_dir" ]] || continue
         local name=$(basename "$skill_dir")
         mkdir -p "$SKILLS_DIR/$name"
-        cp "$skill_dir"* "$SKILLS_DIR/$name/" 2>/dev/null || true
-        debug "Skill: $name"
+        cp -r "$skill_dir"* "$SKILLS_DIR/$name/" 2>/dev/null || true
+        log "  Skill: /$name"
     done
 }
 
@@ -160,9 +164,9 @@ install_hooks() {
 
 install_agents() {
     log "Installing agents..."
-    mkdir -p "$CLAUDE_HOME/agents/sypnose"
-    cp "$PLUGIN_DIR/agents/"*.md "$CLAUDE_HOME/agents/sypnose/" 2>/dev/null || true
-    debug "Agents -> $CLAUDE_HOME/agents/sypnose/"
+    mkdir -p "$CLAUDE_HOME/agents"
+    cp "$PLUGIN_DIR/agents/"*.md "$CLAUDE_HOME/agents/" 2>/dev/null || true
+    log "  Agents -> $CLAUDE_HOME/agents/"
 }
 
 write_state() {
@@ -230,9 +234,9 @@ log "═════════════════════════
 log ""
 log " MCP: sypnose (14 tools via HTTP)"
 log " Rules: $RULES_DIR"
-[[ "$PROFILE" == "full" || "$PROFILE" == "dev" ]] && log " Skills: $SKILLS_DIR"
+[[ "$PROFILE" == "full" || "$PROFILE" == "dev" ]] && log " Skills: $SKILLS_DIR/ (invoke with /sypnose, /graphify, etc.)"
 [[ "$PROFILE" == "full" || "$PROFILE" == "dev" || "$PROFILE" == "server" ]] && log " Hooks: $HOOKS_FILE"
-[[ "$PROFILE" == "full" ]] && log " Agents: $CLAUDE_HOME/agents/sypnose/"
+[[ "$PROFILE" == "full" ]] && log " Agents: $CLAUDE_HOME/agents/"
 log ""
 log " Next: restart Claude Code to activate."
 log ""

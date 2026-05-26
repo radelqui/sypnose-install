@@ -12,8 +12,8 @@ $VERSION = "1.0.0"
 
 # ── Paths ────────────────────────────────────────────────────
 $CLAUDE_HOME = Join-Path $env:USERPROFILE ".claude"
-$RULES_DIR = Join-Path $CLAUDE_HOME "rules\sypnose"
-$SKILLS_DIR = Join-Path $CLAUDE_HOME "skills\sypnose"
+$RULES_DIR = Join-Path $CLAUDE_HOME "rules"
+$SKILLS_DIR = Join-Path $CLAUDE_HOME "skills"
 $HOOKS_FILE = Join-Path $CLAUDE_HOME "hooks.json"
 $PLUGIN_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -79,24 +79,28 @@ function Install-MCP {
 
 function Install-Rules {
     Log "Installing rules..."
-    New-Item -ItemType Directory -Path $RULES_DIR -Force | Out-Null
     $src = Join-Path $PLUGIN_DIR "rules"
     if (Test-Path $src) {
-        Copy-Item "$src\*.md" $RULES_DIR -Force
-        LogOK "Rules -> $RULES_DIR"
+        # Copy each rule file directly to ~/.claude/rules/
+        Get-ChildItem $src -Filter "*.md" | ForEach-Object {
+            $dest = Join-Path $RULES_DIR $_.Name
+            Copy-Item $_.FullName $dest -Force
+            LogOK "Rule: $($_.Name)"
+        }
     }
 }
 
 function Install-Skills {
     Log "Installing skills..."
-    New-Item -ItemType Directory -Path $SKILLS_DIR -Force | Out-Null
     $src = Join-Path $PLUGIN_DIR "skills"
     if (Test-Path $src) {
+        # Each skill folder goes directly to ~/.claude/skills/<skill-name>/
+        # This makes /sypnose, /graphify, etc. invocable as slash commands
         Get-ChildItem $src -Directory | ForEach-Object {
             $dest = Join-Path $SKILLS_DIR $_.Name
             New-Item -ItemType Directory -Path $dest -Force | Out-Null
-            Copy-Item "$($_.FullName)\*" $dest -Force
-            LogOK "Skill: $($_.Name)"
+            Copy-Item "$($_.FullName)\*" $dest -Force -Recurse
+            LogOK "Skill: /$($_.Name) -> $dest"
         }
     }
 }
@@ -143,7 +147,7 @@ function Install-Hooks {
 
 function Install-Agents {
     Log "Installing agents..."
-    $dest = Join-Path $CLAUDE_HOME "agents\sypnose"
+    $dest = Join-Path $CLAUDE_HOME "agents"
     New-Item -ItemType Directory -Path $dest -Force | Out-Null
     $src = Join-Path $PLUGIN_DIR "agents"
     if (Test-Path $src) {
@@ -217,13 +221,13 @@ Write-Host ""
 Write-Host "  MCP: sypnose (14 tools via HTTP)" -ForegroundColor White
 Write-Host "  Rules: $RULES_DIR" -ForegroundColor White
 if ($PROFILE -eq "full" -or $PROFILE -eq "dev") {
-    Write-Host "  Skills: $SKILLS_DIR" -ForegroundColor White
+    Write-Host "  Skills: $SKILLS_DIR\ (invoke with /sypnose, /graphify, etc.)" -ForegroundColor White
 }
 if ($PROFILE -ne "minimal") {
     Write-Host "  Hooks: $HOOKS_FILE" -ForegroundColor White
 }
 if ($PROFILE -eq "full") {
-    Write-Host "  Agents: $CLAUDE_HOME\agents\sypnose\" -ForegroundColor White
+    Write-Host "  Agents: $CLAUDE_HOME\agents\" -ForegroundColor White
 }
 Write-Host ""
 Write-Host "  Next: restart Claude Code to activate." -ForegroundColor Gray
