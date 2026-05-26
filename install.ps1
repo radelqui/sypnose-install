@@ -1,286 +1,134 @@
-#Requires -Version 5.1
-<#
-.SYNOPSIS
-    Sypnose — Universal Claude Code Plugin Installer (Windows)
-.DESCRIPTION
-    One command. Zero dependencies. Installs MCP + skills + rules + agents + hooks.
-    Works on any Windows with PowerShell 5.1+ and Claude Code installed.
-.EXAMPLE
-    irm https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.ps1 | iex
-.EXAMPLE
-    .\install.ps1 --profile minimal
-#>
+# Sypnose Installer v2.1 — Windows
+# Install: irm https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.ps1 | iex
 $ErrorActionPreference = "Stop"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# ── Branding ─────────────────────────────────────────────────
-$VERSION = "2.0.0"
-$REPO = "https://raw.githubusercontent.com/radelqui/sypnose-install/main"
-$MCP_URL = "http://62.171.147.46:18900/mcp"
-$MCP_KEY = "21ff9b26fd454001328aaf60774f332d45138112f689af3a9b34de3dc5845589"
+$VERSION  = "2.1.0"
+$REPO_RAW = "https://raw.githubusercontent.com/radelqui/sypnose-install/main"
+$MCP_URL  = "http://62.171.147.46:18900/mcp"
+$MCP_KEY  = "21ff9b26fd454001328aaf60774f332d45138112f689af3a9b34de3dc5845589"
+$CLAUDE   = Join-Path $env:USERPROFILE ".claude"
 
-# ── Paths ────────────────────────────────────────────────────
-$CLAUDE_HOME = Join-Path $env:USERPROFILE ".claude"
-$SKILLS_DIR  = Join-Path $CLAUDE_HOME "skills"
-$RULES_DIR   = Join-Path $CLAUDE_HOME "rules"
-$AGENTS_DIR  = Join-Path $CLAUDE_HOME "agents"
+Write-Host ""
+Write-Host "  SYPNOSE v$VERSION — Installing..." -ForegroundColor Cyan
+Write-Host ""
 
-# ── Profile ──────────────────────────────────────────────────
-$PROFILE = "full"
-for ($i = 0; $i -lt $args.Count; $i++) {
-    if ($args[$i] -eq "--profile" -or $args[$i] -eq "-p") { $PROFILE = $args[$i+1]; $i++ }
-    if ($args[$i] -eq "--help" -or $args[$i] -eq "-h") {
-        Write-Host "Usage: install.ps1 [--profile full|minimal]"; exit 0
-    }
-}
-
-# ── Helpers ──────────────────────────────────────────────────
-function Print-Banner {
-    Write-Host ""
-    Write-Host "  ╔═══════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "  ║     SYPNOSE v$VERSION                       ║" -ForegroundColor Cyan
-    Write-Host "  ║     Universal Claude Code Plugin          ║" -ForegroundColor Cyan
-    Write-Host "  ╚═══════════════════════════════════════════╝" -ForegroundColor Cyan
-    Write-Host ""
-}
-
-function Log([string]$msg)  { Write-Host "  [+] $msg" -ForegroundColor Green }
-function Warn([string]$msg) { Write-Host "  [!] $msg" -ForegroundColor Yellow }
-function Err([string]$msg)  { Write-Host "  [x] $msg" -ForegroundColor Red }
-
-function Download-File([string]$url, [string]$dest) {
+# ── Download helper (works in irm|iex context) ──────────────
+function dl([string]$path, [string]$dest) {
+    $url = "$REPO_RAW/$path"
     $dir = Split-Path $dest
-    if (!(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    if ($dir -and !(Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     try {
-        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        (New-Object Net.WebClient).DownloadFile($url, $dest)
+        Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing -ErrorAction Stop
         return $true
     } catch {
-        Warn "Failed to download: $url"
-        return $false
-    }
-}
-
-# ── Step 1: MCP ──────────────────────────────────────────────
-function Install-MCP {
-    Write-Host "  ── MCP Server ──────────────────────────────" -ForegroundColor DarkGray
-
-    # Try claude CLI first (cleanest)
-    $claude = Get-Command claude -ErrorAction SilentlyContinue
-    if ($claude) {
         try {
-            $output = & claude mcp add -s user --transport http `
-                -H "Authorization: Bearer $MCP_KEY" `
-                sypnose $MCP_URL 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                Log "MCP registered: sypnose (via claude CLI)"
-                return
-            }
-        } catch {}
+            (New-Object Net.WebClient).DownloadFile($url, $dest)
+            return $true
+        } catch {
+            Write-Host "  [x] FAIL: $path" -ForegroundColor Red
+            return $false
+        }
     }
+}
 
-    # Fallback: write .mcp.json directly
-    $mcpFile = Join-Path $CLAUDE_HOME ".mcp.json"
-    $sypnoseEntry = @{
-        type = "http"
-        url = $MCP_URL
-        headers = @{ Authorization = "Bearer $MCP_KEY" }
-    }
+# ── 1. MCP ───────────────────────────────────────────────────
+Write-Host "  MCP..." -ForegroundColor DarkGray -NoNewline
 
+$mcpDone = $false
+if (Get-Command claude -ErrorAction SilentlyContinue) {
+    try {
+        & claude mcp add -s user --transport http -H "Authorization: Bearer $MCP_KEY" sypnose $MCP_URL 2>$null
+        if ($LASTEXITCODE -eq 0) { $mcpDone = $true }
+    } catch {}
+}
+
+if (!$mcpDone) {
+    $mcpFile = Join-Path $CLAUDE ".mcp.json"
+    $entry = @{ type="http"; url=$MCP_URL; headers=@{ Authorization="Bearer $MCP_KEY" } }
     if (Test-Path $mcpFile) {
-        $existing = Get-Content $mcpFile -Raw | ConvertFrom-Json
-        if (!$existing.mcpServers) {
-            $existing | Add-Member -NotePropertyName "mcpServers" -NotePropertyValue @{} -Force
-        }
-        $existing.mcpServers | Add-Member -NotePropertyName "sypnose" -NotePropertyValue $sypnoseEntry -Force
-        $existing | ConvertTo-Json -Depth 10 | Set-Content $mcpFile -Encoding UTF8
+        $j = Get-Content $mcpFile -Raw | ConvertFrom-Json
+        if (!$j.mcpServers) { $j | Add-Member -NotePropertyName mcpServers -NotePropertyValue @{} -Force }
+        $j.mcpServers | Add-Member -NotePropertyName sypnose -NotePropertyValue $entry -Force
+        $j | ConvertTo-Json -Depth 10 | Set-Content $mcpFile -Encoding UTF8
     } else {
-        New-Item -ItemType Directory -Path $CLAUDE_HOME -Force | Out-Null
-        @{ mcpServers = @{ sypnose = $sypnoseEntry } } | ConvertTo-Json -Depth 10 | Set-Content $mcpFile -Encoding UTF8
-    }
-    Log "MCP registered: sypnose (via .mcp.json)"
-}
-
-# ── Step 2: Skills ───────────────────────────────────────────
-function Install-Skills {
-    Write-Host "  ── Skills ──────────────────────────────────" -ForegroundColor DarkGray
-
-    $skills = @(
-        @{ name = "sypnose"; desc = "/sypnose — unified system (6 phases, 13 laws, workers, verification)" }
-        @{ name = "graphify"; desc = "/graphify — knowledge graph builder" }
-        @{ name = "bios";     desc = "/bios — agent identity system" }
-    )
-
-    # Check if we have local files (cloned repo) or need to download
-    $localSkills = Join-Path $PSScriptRoot "skills"
-    $useLocal = Test-Path $localSkills
-
-    foreach ($skill in $skills) {
-        $destDir = Join-Path $SKILLS_DIR $skill.name
-        New-Item -ItemType Directory -Path $destDir -Force | Out-Null
-
-        if ($useLocal) {
-            $src = Join-Path $localSkills "$($skill.name)\SKILL.md"
-            if (Test-Path $src) {
-                Copy-Item $src (Join-Path $destDir "SKILL.md") -Force
-                Log "/$($skill.name) installed (local)"
-                continue
-            }
-        }
-
-        # Download from GitHub
-        $url = "$REPO/skills/$($skill.name)/SKILL.md"
-        $dest = Join-Path $destDir "SKILL.md"
-        if (Download-File $url $dest) {
-            Log "/$($skill.name) installed (remote)"
-        } else {
-            Err "/$($skill.name) FAILED"
-        }
+        New-Item -ItemType Directory -Path $CLAUDE -Force | Out-Null
+        @{ mcpServers=@{ sypnose=$entry } } | ConvertTo-Json -Depth 10 | Set-Content $mcpFile -Encoding UTF8
     }
 }
+Write-Host " OK" -ForegroundColor Green
 
-# ── Step 3: Rules ────────────────────────────────────────────
-function Install-Rules {
-    Write-Host "  ── Rules ───────────────────────────────────" -ForegroundColor DarkGray
-
-    $rules = @(
-        "00-memory-protocol.md",
-        "01-verification.md",
-        "02-sypnose-tools.md",
-        "03-worker-delegation.md",
-        "04-subagent-delegation.md",
-        "05-writing-plans.md",
-        "06-iron-laws.md"
-    )
-
-    New-Item -ItemType Directory -Path $RULES_DIR -Force | Out-Null
-    $localRules = Join-Path $PSScriptRoot "rules"
-    $useLocal = Test-Path $localRules
-    $count = 0
-
-    foreach ($rule in $rules) {
-        $dest = Join-Path $RULES_DIR $rule
-        if ($useLocal) {
-            $src = Join-Path $localRules $rule
-            if (Test-Path $src) { Copy-Item $src $dest -Force; $count++; continue }
-        }
-        if (Download-File "$REPO/rules/$rule" $dest) { $count++ }
-    }
-    Log "$count rules installed"
+# ── 2. Skills ────────────────────────────────────────────────
+Write-Host "  Skills..." -ForegroundColor DarkGray -NoNewline
+$skillOk = 0
+foreach ($s in @("sypnose","graphify","bios")) {
+    $dest = Join-Path $CLAUDE "skills\$s\SKILL.md"
+    if (dl "skills/$s/SKILL.md" $dest) { $skillOk++ }
 }
+Write-Host " $skillOk/3" -ForegroundColor $(if($skillOk -eq 3){"Green"}else{"Yellow"})
 
-# ── Step 4: Agents ───────────────────────────────────────────
-function Install-Agents {
-    Write-Host "  ── Agents ──────────────────────────────────" -ForegroundColor DarkGray
-
-    $agents = @("architect.md", "developer.md", "verifier.md", "researcher.md")
-    New-Item -ItemType Directory -Path $AGENTS_DIR -Force | Out-Null
-    $localAgents = Join-Path $PSScriptRoot "agents"
-    $useLocal = Test-Path $localAgents
-    $count = 0
-
-    foreach ($agent in $agents) {
-        $dest = Join-Path $AGENTS_DIR $agent
-        if ($useLocal) {
-            $src = Join-Path $localAgents $agent
-            if (Test-Path $src) { Copy-Item $src $dest -Force; $count++; continue }
-        }
-        if (Download-File "$REPO/agents/$agent" $dest) { $count++ }
-    }
-    Log "$count agents installed"
+# ── 3. Rules ─────────────────────────────────────────────────
+Write-Host "  Rules..." -ForegroundColor DarkGray -NoNewline
+$ruleOk = 0
+foreach ($r in @(
+    "00-memory-protocol.md","01-verification.md","02-sypnose-tools.md",
+    "03-worker-delegation.md","04-subagent-delegation.md",
+    "05-writing-plans.md","06-iron-laws.md"
+)) {
+    $dest = Join-Path $CLAUDE "rules\$r"
+    New-Item -ItemType Directory -Path (Join-Path $CLAUDE "rules") -Force | Out-Null
+    if (dl "rules/$r" $dest) { $ruleOk++ }
 }
+Write-Host " $ruleOk/7" -ForegroundColor $(if($ruleOk -eq 7){"Green"}else{"Yellow"})
 
-# ── Step 5: Hooks ────────────────────────────────────────────
-function Install-Hooks {
-    Write-Host "  ── Hooks ───────────────────────────────────" -ForegroundColor DarkGray
-
-    $hooksFile = Join-Path $CLAUDE_HOME "hooks.json"
-    $localHooks = Join-Path $PSScriptRoot "hooks\hooks.json"
-
-    if (Test-Path $localHooks) {
-        if (!(Test-Path $hooksFile)) {
-            Copy-Item $localHooks $hooksFile -Force
-        }
-    } else {
-        $tmpHooks = Join-Path $env:TEMP "sypnose-hooks.json"
-        if (Download-File "$REPO/hooks/hooks.json" $tmpHooks) {
-            if (!(Test-Path $hooksFile)) {
-                Copy-Item $tmpHooks $hooksFile -Force
-            }
-            Remove-Item $tmpHooks -Force -ErrorAction SilentlyContinue
-        }
-    }
-
-    $scriptsDir = Join-Path $CLAUDE_HOME "hooks\sypnose"
-    New-Item -ItemType Directory -Path $scriptsDir -Force | Out-Null
-    foreach ($script in @("session-start.sh", "pre-compact.sh", "stop.sh")) {
-        $localScript = Join-Path $PSScriptRoot "hooks\scripts\$script"
-        if (Test-Path $localScript) {
-            Copy-Item $localScript (Join-Path $scriptsDir $script) -Force
-        } else {
-            Download-File "$REPO/hooks/scripts/$script" (Join-Path $scriptsDir $script) | Out-Null
-        }
-    }
-    Log "3 hooks installed (session-start, pre-compact, stop)"
+# ── 4. Agents ────────────────────────────────────────────────
+Write-Host "  Agents..." -ForegroundColor DarkGray -NoNewline
+$agentOk = 0
+foreach ($a in @("architect.md","developer.md","verifier.md","researcher.md")) {
+    $dest = Join-Path $CLAUDE "agents\$a"
+    New-Item -ItemType Directory -Path (Join-Path $CLAUDE "agents") -Force | Out-Null
+    if (dl "agents/$a" $dest) { $agentOk++ }
 }
+Write-Host " $agentOk/4" -ForegroundColor $(if($agentOk -eq 4){"Green"}else{"Yellow"})
+
+# ── 5. Hooks ─────────────────────────────────────────────────
+Write-Host "  Hooks..." -ForegroundColor DarkGray -NoNewline
+$hooksFile = Join-Path $CLAUDE "hooks.json"
+if (!(Test-Path $hooksFile)) { dl "hooks/hooks.json" $hooksFile | Out-Null }
+$hooksDir = Join-Path $CLAUDE "hooks\sypnose"
+New-Item -ItemType Directory -Path $hooksDir -Force | Out-Null
+foreach ($h in @("session-start.sh","pre-compact.sh","stop.sh")) {
+    dl "hooks/scripts/$h" (Join-Path $hooksDir $h) | Out-Null
+}
+Write-Host " OK" -ForegroundColor Green
 
 # ── Verify ───────────────────────────────────────────────────
-function Verify-Install {
-    Write-Host ""
-    Write-Host "  ── Verification ────────────────────────────" -ForegroundColor DarkGray
-    $pass = 0; $fail = 0
+Write-Host ""
+$pass = 0
 
-    # MCP
-    $mcpFile = Join-Path $CLAUDE_HOME ".mcp.json"
-    if ((Test-Path $mcpFile) -and ((Get-Content $mcpFile -Raw) -match "sypnose")) {
-        Log "MCP config: OK"; $pass++
-    } else { Err "MCP config: MISSING"; $fail++ }
+$mcpCheck = (Test-Path (Join-Path $CLAUDE ".mcp.json")) -and ((Get-Content (Join-Path $CLAUDE ".mcp.json") -Raw) -match "sypnose")
+if ($mcpCheck) { Write-Host "  [+] MCP: OK" -ForegroundColor Green; $pass++ }
+else { Write-Host "  [x] MCP: FAIL" -ForegroundColor Red }
 
-    # Skills
-    $sypnoseSkill = Join-Path $SKILLS_DIR "sypnose\SKILL.md"
-    if (Test-Path $sypnoseSkill) {
-        $lines = (Get-Content $sypnoseSkill | Measure-Object -Line).Lines
-        Log "/sypnose skill: OK ($lines lines)"; $pass++
-    } else { Err "/sypnose skill: MISSING"; $fail++ }
+$skillCheck = Test-Path (Join-Path $CLAUDE "skills\sypnose\SKILL.md")
+if ($skillCheck) {
+    $lines = (Get-Content (Join-Path $CLAUDE "skills\sypnose\SKILL.md") | Measure-Object -Line).Lines
+    Write-Host "  [+] /sypnose: OK ($lines lines)" -ForegroundColor Green; $pass++
+} else { Write-Host "  [x] /sypnose: FAIL" -ForegroundColor Red }
 
-    # Rules
-    $ruleCount = (Get-ChildItem (Join-Path $RULES_DIR "*.md") -ErrorAction SilentlyContinue | Measure-Object).Count
-    if ($ruleCount -ge 5) { Log "Rules: OK ($ruleCount files)"; $pass++ }
-    else { Err "Rules: MISSING ($ruleCount files)"; $fail++ }
+$ruleCheck = (Get-ChildItem (Join-Path $CLAUDE "rules\*.md") -ErrorAction SilentlyContinue | Measure-Object).Count
+if ($ruleCheck -ge 5) { Write-Host "  [+] Rules: OK ($ruleCheck)" -ForegroundColor Green; $pass++ }
+else { Write-Host "  [x] Rules: FAIL ($ruleCheck)" -ForegroundColor Red }
 
-    # Agents
-    $agentCount = (Get-ChildItem (Join-Path $AGENTS_DIR "*.md") -ErrorAction SilentlyContinue | Measure-Object).Count
-    if ($agentCount -ge 3) { Log "Agents: OK ($agentCount files)"; $pass++ }
-    else { Warn "Agents: $agentCount files (expected 4)"; $fail++ }
+$agentCheck = (Get-ChildItem (Join-Path $CLAUDE "agents\*.md") -ErrorAction SilentlyContinue | Measure-Object).Count
+if ($agentCheck -ge 3) { Write-Host "  [+] Agents: OK ($agentCheck)" -ForegroundColor Green; $pass++ }
+else { Write-Host "  [x] Agents: FAIL ($agentCheck)" -ForegroundColor Red }
 
-    Write-Host ""
-    if ($fail -eq 0) {
-        Write-Host "  ╔═══════════════════════════════════════════╗" -ForegroundColor Green
-        Write-Host "  ║  ALL $pass CHECKS PASSED                      ║" -ForegroundColor Green
-        Write-Host "  ║                                           ║" -ForegroundColor Green
-        Write-Host "  ║  Restart Claude Code to activate.         ║" -ForegroundColor Green
-        Write-Host "  ║  Then type /sypnose to get started.       ║" -ForegroundColor Green
-        Write-Host "  ╚═══════════════════════════════════════════╝" -ForegroundColor Green
-    } else {
-        Write-Host "  ╔═══════════════════════════════════════════╗" -ForegroundColor Red
-        Write-Host "  ║  $fail CHECKS FAILED — see errors above       ║" -ForegroundColor Red
-        Write-Host "  ╚═══════════════════════════════════════════╝" -ForegroundColor Red
-    }
-    Write-Host ""
+Write-Host ""
+if ($pass -eq 4) {
+    Write-Host "  ALL 4 CHECKS PASSED" -ForegroundColor Green
+    Write-Host "  Restart Claude Code, then type /sypnose" -ForegroundColor Green
+} else {
+    Write-Host "  $($pass)/4 PASSED — check errors above" -ForegroundColor Yellow
 }
-
-# ── Main ─────────────────────────────────────────────────────
-Print-Banner
-
-Install-MCP
-
-if ($PROFILE -eq "full") {
-    Install-Skills
-    Install-Rules
-    Install-Agents
-    Install-Hooks
-} elseif ($PROFILE -eq "minimal") {
-    Install-Skills  # always install /sypnose at minimum
-    Install-Rules
-}
-
-Verify-Install
+Write-Host ""
