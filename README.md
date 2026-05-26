@@ -1,146 +1,97 @@
-# Sypnose — Universal Claude Code Plugin
+# Sypnose
 
-One command. Zero dependencies. `/sypnose` = everything.
+Universal plugin for Claude Code. One command installs everything.
 
-14 MCP tools + 3 skills + 7 rules + 4 agents + 3 hooks.
+## Install
 
-## Install (ANY Claude Code, ANY OS)
-
+**Linux / macOS / WSL:**
 ```bash
-git clone https://github.com/radelqui/sypnose-install.git ~/.claude/plugins/sypnose
-cd ~/.claude/plugins/sypnose && ./install.sh
+curl -sf https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.sh | bash
 ```
 
-Windows:
+**Windows (PowerShell):**
 ```powershell
-git clone https://github.com/radelqui/sypnose-install.git $env:USERPROFILE\.claude\plugins\sypnose
-cd $env:USERPROFILE\.claude\plugins\sypnose; .\install.ps1
+irm https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.ps1 | iex
 ```
 
-## After Install
+**Or clone and install locally:**
+```bash
+git clone https://github.com/radelqui/sypnose-install.git && cd sypnose-install && ./install.sh
+```
 
-Type `/sypnose` in Claude Code. That's it. Everything is there:
-- 6-phase protocol (read, plan, approve, dispatch, verify, save)
-- 13 iron laws (Boris + Karpathy + Superpowers)
-- Worker dispatch (claw-dispatch JSON with waves + verification)
-- Subagent execution (fresh per task + two-stage review)
-- TDD plans (bite-sized, no placeholders)
-- Multi-tier verification (evidence before claims)
-- 10 advanced patterns (squad mode, competing hypotheses, batch fan-out...)
-- 14 MCP tools reference
+Restart Claude Code after install. Type `/sypnose` to start.
 
-## What You Get
+## What gets installed
 
-### `/sypnose` — The Unified Command (v4)
+| Component | Count | Description |
+|-----------|-------|-------------|
+| MCP Server | 1 | 14 tools via HTTP (zero dependencies) |
+| `/sypnose` | 1 skill | Unified system: 6 phases, 13 laws, workers, subagents, verification |
+| `/graphify` | 1 skill | Knowledge graph builder (code, docs, papers) |
+| `/bios` | 1 skill | Agent identity system |
+| Rules | 7 | Memory protocol, verification, iron laws, delegation |
+| Agents | 4 | architect (opus), developer (sonnet), verifier (haiku), researcher (sonnet) |
+| Hooks | 3 | Auto-save/restore state across sessions |
 
-ONE command that includes EVERYTHING: plan creation, execution protocols,
-worker dispatch, subagent management, verification, and all 13 iron laws.
+## `/sypnose` — the unified command
 
-Previously split across 8 separate skills, now unified in a single invocation.
+Everything in one invocation:
 
-### 14 MCP Tools (HTTP native — NO Node.js)
+- **6-phase protocol**: read, plan, approve, dispatch, verify, save
+- **13 iron laws**: Boris Cherny 2026 + Karpathy 4 Principles + Superpowers
+- **Worker dispatch**: claw-dispatch JSON with waves, verification gates, model routing
+- **Subagent execution**: fresh per task, two-stage review (spec + quality)
+- **TDD plans**: bite-sized steps, no placeholders, actual code
+- **Multi-tier verification**: evidence before claims, always
+- **10 advanced patterns**: squad mode, competing hypotheses, batch fan-out, ultraplan
+- **Agent catalog**: declarative YAML definitions (works with Gemini, DeepSeek, Cursor)
+- **Prompt defense**: anti-injection baseline for all workers
+- **Instinct system**: continuous learning, pattern capture, skill promotion
+
+## 14 MCP tools
+
+All tools connect to Sypnose cloud backend via HTTP. No local server needed.
 
 | Tool | Description |
 |------|-------------|
-| `kb_save` | Save knowledge entry |
-| `kb_read` | Read by key |
-| `kb_search` | Full-text search |
-| `kb_list` | List with filters |
-| `kb_context` | Top HOT entries |
-| `memory_status` | Memory Palace stats |
-| `memory_search` | Semantic search |
-| `memory_add` | Add memory drawer |
-| `memory_kg_query` | Query knowledge graph |
-| `memory_kg_add` | Add KG fact |
-| `deep_query` | LightRAG semantic search (hybrid/local/global/naive) |
-| `deep_ingest` | Ingest text to RAG |
-| `channel_status` | Hub health |
-| `channel_publish` | Send message to agents |
-
-### 3 Skills
-
-| Skill | Trigger | Description |
-|-------|---------|-------------|
-| `/sypnose` | plan, execute, dispatch, verify | **UNIFIED** — 6 phases, 13 laws, workers, subagents, verification, TDD plans |
-| `/graphify` | `/graphify` | Any input to knowledge graph (code, docs, papers, images, video) |
-| `/bios` | `/bios` | Agent identity system via KB |
-
-### 7 Rules
-
-| Rule | Source | Description |
-|------|--------|-------------|
-| memory-protocol | Sypnose | Always save/restore state across sessions |
-| verification | Sypnose + Boris | Never declare "done" without concrete evidence |
-| sypnose-tools | Sypnose | Quick reference for all 14 MCP tools |
-| worker-delegation | Sypnose | Coordinators delegate, workers execute |
-| subagent-delegation | Superpowers | Fresh subagent per task + review gates |
-| writing-plans | Superpowers | TDD plans with actual code, no placeholders |
-| iron-laws | Boris + Karpathy | 13 non-negotiable rules for quality work |
-
-### 4 Agents
-
-| Agent | Model | Description |
-|-------|-------|-------------|
-| architect | opus | System design, trade-offs, plans |
-| developer | sonnet | Implementation, bug fixes, tests |
-| verifier | haiku | QA verification with evidence |
-| researcher | sonnet | Web search, docs, competitive analysis |
-
-### 3 Hooks
-
-| Event | Hook | Description |
-|-------|------|-------------|
-| SessionStart | memory-restore | Load .brain/ state on start |
-| PreCompact | memory-save | Save state before compaction |
-| Stop | memory-persist | Auto-commit .brain/ on exit |
-
-## Profiles
-
-```bash
-./install.sh --profile full      # Everything (default)
-./install.sh --profile minimal   # MCP + rules only
-./install.sh --profile dev       # MCP + rules + skills + hooks
-./install.sh --profile server    # MCP + SSH + tmux session management
-```
+| `kb_save` / `kb_read` / `kb_search` / `kb_list` / `kb_context` | Knowledge Base (persistent, cross-session) |
+| `memory_status` / `memory_search` / `memory_add` | Memory Palace (semantic memory) |
+| `memory_kg_query` / `memory_kg_add` | Knowledge Graph |
+| `deep_query` / `deep_ingest` | LightRAG (hybrid/local/global/naive search) |
+| `channel_status` / `channel_publish` | Inter-agent messaging hub |
 
 ## Architecture
 
 ```
-Your Claude Code (any machine, any OS)
+Claude Code (any machine, any OS)
     |
-    | HTTP POST (native — Claude Code v2.1+ built-in)
-    | Zero bridge, zero npm, zero dependencies
+    | HTTP POST (native transport, v2.1+)
     v
-http://62.171.147.46:18900/mcp  (Sypnose Unified MCP v3.0.0)
+Sypnose Unified MCP v3.0.0
     |
-    | Internal routing (zero latency)
-    v
-KB(:18791) + Memory(:18796) + LightRAG(:18800) + Hub(:8095)
+    +-- KB Service (:18791)
+    +-- Memory Palace (:18796)
+    +-- LightRAG (:18800)
+    +-- Channel Hub (:8095)
 ```
 
-## vs Everything-Claude-Code (ECC)
+## Profiles
 
-| Feature | ECC | Sypnose |
-|---------|-----|---------|
-| Install deps | Node.js required | Zero (HTTP native) |
-| MCP Tools | 6 external MCPs | 14 own tools on own backend |
-| Knowledge Graph | No | memory_kg_add/query + /graphify |
-| Semantic Search | Basic | LightRAG 4 modes + Memory Palace |
-| Inter-agent Comms | No | Channel Hub |
-| Cross-session Memory | Local files only | KB cloud + Memory Palace |
-| Worker Dispatch | No | claw-dispatch with Gemini workers |
-| Skills | 250+ (generic) | 8 battle-tested (from production) |
-| Rules | 30+ (by language) | 7 universal (from 24 failure memories) |
+```bash
+./install.sh                    # Full (default): MCP + skills + rules + agents + hooks
+./install.sh --profile minimal  # MCP + skills + rules only
+```
 
 ## Requirements
 
 - Claude Code v2.1+ (HTTP transport support)
-- That's it. No Node.js. No npm. No Python. Nothing.
+- That's it. No Node.js. No npm. No Python.
 
 ## Uninstall
 
 ```bash
-./uninstall.sh
-# or
 claude mcp remove sypnose
+rm -rf ~/.claude/skills/{sypnose,graphify,bios}
+rm -f ~/.claude/rules/{00-memory-protocol,01-verification,02-sypnose-tools,03-worker-delegation,04-subagent-delegation,05-writing-plans,06-iron-laws}.md
+rm -f ~/.claude/agents/{architect,developer,verifier,researcher}.md
 ```

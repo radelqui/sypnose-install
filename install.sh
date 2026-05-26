@@ -1,242 +1,248 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════
-# SYPNOSE INSTALLER — Universal Claude Code Plugin
-# Zero dependencies. Works on Linux, macOS, WSL, Git Bash.
+# Sypnose — Universal Claude Code Plugin Installer
+# One command. Zero dependencies. Linux / macOS / WSL / Git Bash.
+#
+# Remote install:
+#   curl -sf https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.sh | bash
+#
+# Local install (after git clone):
+#   ./install.sh [--profile full|minimal]
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
-# ── Config ───────────────────────────────────────────────────
-SYPNOSE_URL="http://62.171.147.46:18900/mcp"
-SYPNOSE_KEY="21ff9b26fd454001328aaf60774f332d45138112f689af3a9b34de3dc5845589"
-PLUGIN_NAME="sypnose"
-VERSION="1.0.0"
+VERSION="2.0.0"
+REPO="https://raw.githubusercontent.com/radelqui/sypnose-install/main"
+MCP_URL="http://62.171.147.46:18900/mcp"
+MCP_KEY="21ff9b26fd454001328aaf60774f332d45138112f689af3a9b34de3dc5845589"
 
 # ── Paths ────────────────────────────────────────────────────
-if [[ "${OS:-}" == "Windows_NT" ]]; then
-    CLAUDE_HOME="${APPDATA}/../.claude"
-else
-    CLAUDE_HOME="${HOME}/.claude"
-fi
-CLAUDE_HOME="$(cd "$CLAUDE_HOME" 2>/dev/null && pwd || echo "$HOME/.claude")"
-
-RULES_DIR="$CLAUDE_HOME/rules"
+CLAUDE_HOME="${HOME}/.claude"
 SKILLS_DIR="$CLAUDE_HOME/skills"
-HOOKS_FILE="$CLAUDE_HOME/hooks.json"
-PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+RULES_DIR="$CLAUDE_HOME/rules"
+AGENTS_DIR="$CLAUDE_HOME/agents"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}" 2>/dev/null)" && pwd 2>/dev/null || echo "/tmp")"
 
-# ── Defaults ─────────────────────────────────────────────────
+# ── Profile ──────────────────────────────────────────────────
 PROFILE="full"
-VERBOSE=0
-
-# ── Args ─────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --profile) PROFILE="$2"; shift 2 ;;
-        --verbose|-v) VERBOSE=1; shift ;;
-        --help|-h)
-            echo "Usage: install.sh [--profile full|minimal|dev|server] [--verbose]"
-            exit 0 ;;
-        *) echo "Unknown: $1"; exit 1 ;;
+        --profile|-p) PROFILE="$2"; shift 2 ;;
+        --help|-h) echo "Usage: install.sh [--profile full|minimal]"; exit 0 ;;
+        *) shift ;;
     esac
 done
 
-# ── Functions ────────────────────────────────────────────────
-log() { echo "[sypnose] $*"; }
-debug() { [[ $VERBOSE -eq 1 ]] && echo "  > $*" || true; }
+# ── Helpers ──────────────────────────────────────────────────
+banner() {
+    echo ""
+    echo "  ╔═══════════════════════════════════════════╗"
+    echo "  ║     SYPNOSE v$VERSION                       ║"
+    echo "  ║     Universal Claude Code Plugin          ║"
+    echo "  ╚═══════════════════════════════════════════╝"
+    echo ""
+}
 
+ok()   { echo "  [+] $*"; }
+warn() { echo "  [!] $*"; }
+err()  { echo "  [x] $*"; }
+
+download() {
+    local url="$1" dest="$2"
+    mkdir -p "$(dirname "$dest")"
+    if command -v curl &>/dev/null; then
+        curl -sfL "$url" -o "$dest" 2>/dev/null && return 0
+    elif command -v wget &>/dev/null; then
+        wget -qO "$dest" "$url" 2>/dev/null && return 0
+    fi
+    warn "Failed: $url"
+    return 1
+}
+
+has_local() { [[ -d "$SCRIPT_DIR/skills" ]]; }
+
+# ── Step 1: MCP ──────────────────────────────────────────────
 install_mcp() {
-    log "Registering Sypnose MCP (HTTP transport)..."
+    echo "  ── MCP Server ──────────────────────────────"
 
-    # Method 1: claude CLI
     if command -v claude &>/dev/null; then
-        claude mcp add --transport http \
-            -H "Authorization: Bearer $SYPNOSE_KEY" \
-            "$PLUGIN_NAME" "$SYPNOSE_URL" 2>/dev/null && {
-            log "  MCP registered via claude CLI"
-            return 0
-        }
+        if claude mcp add -s user --transport http \
+            -H "Authorization: Bearer $MCP_KEY" \
+            sypnose "$MCP_URL" 2>/dev/null; then
+            ok "MCP registered: sypnose (via claude CLI)"
+            return
+        fi
     fi
 
-    # Method 2: Direct .mcp.json merge
+    # Fallback: write .mcp.json
     local mcp_file="$CLAUDE_HOME/.mcp.json"
-    if [[ -f "$mcp_file" ]]; then
-        # Merge into existing
-        local tmp=$(mktemp)
-        if command -v jq &>/dev/null; then
-            jq --arg url "$SYPNOSE_URL" --arg key "$SYPNOSE_KEY" \
-                '.mcpServers.sypnose = {"type":"http","url":$url,"headers":{"Authorization":("Bearer "+$key)}}' \
-                "$mcp_file" > "$tmp" && mv "$tmp" "$mcp_file"
-        else
-            # Fallback: Python one-liner
-            python3 -c "
-import json,sys
+    local sypnose_json='{
+  "type": "http",
+  "url": "'"$MCP_URL"'",
+  "headers": { "Authorization": "Bearer '"$MCP_KEY"'" }
+}'
+
+    mkdir -p "$CLAUDE_HOME"
+    if [[ -f "$mcp_file" ]] && command -v jq &>/dev/null; then
+        jq --argjson s "$sypnose_json" '.mcpServers.sypnose = $s' "$mcp_file" > "${mcp_file}.tmp" \
+            && mv "${mcp_file}.tmp" "$mcp_file"
+    elif [[ -f "$mcp_file" ]] && command -v python3 &>/dev/null; then
+        python3 -c "
+import json
 f='$mcp_file'
 d=json.load(open(f))
-d.setdefault('mcpServers',{})['sypnose']={'type':'http','url':'$SYPNOSE_URL','headers':{'Authorization':'Bearer $SYPNOSE_KEY'}}
+d.setdefault('mcpServers',{})['sypnose']=json.loads('$sypnose_json')
 json.dump(d,open(f,'w'),indent=2)
-" 2>/dev/null || {
-                # Last resort: write fresh
-                cat > "$mcp_file" << MCPEOF
-{
-  "mcpServers": {
-    "sypnose": {
-      "type": "http",
-      "url": "$SYPNOSE_URL",
-      "headers": {
-        "Authorization": "Bearer $SYPNOSE_KEY"
-      }
-    }
-  }
-}
-MCPEOF
-            }
-        fi
+"
     else
-        mkdir -p "$(dirname "$mcp_file")"
-        cat > "$mcp_file" << MCPEOF
-{
-  "mcpServers": {
-    "sypnose": {
-      "type": "http",
-      "url": "$SYPNOSE_URL",
-      "headers": {
-        "Authorization": "Bearer $SYPNOSE_KEY"
-      }
-    }
-  }
-}
-MCPEOF
-    fi
-    log "  MCP config written to $mcp_file"
-}
-
-install_rules() {
-    log "Installing rules..."
-    mkdir -p "$RULES_DIR"
-    for rule in "$PLUGIN_DIR/rules/"*.md; do
-        [[ -f "$rule" ]] || continue
-        cp "$rule" "$RULES_DIR/" 2>/dev/null || true
-        log "  Rule: $(basename "$rule")"
-    done
-}
-
-install_skills() {
-    log "Installing skills..."
-    mkdir -p "$SKILLS_DIR"
-
-    # Each skill folder goes directly to ~/.claude/skills/<skill-name>/
-    # This makes /sypnose, /graphify, etc. invocable as slash commands
-    for skill_dir in "$PLUGIN_DIR/skills/"*/; do
-        [[ -d "$skill_dir" ]] || continue
-        local name=$(basename "$skill_dir")
-        mkdir -p "$SKILLS_DIR/$name"
-        cp -r "$skill_dir"* "$SKILLS_DIR/$name/" 2>/dev/null || true
-        log "  Skill: /$name"
-    done
-}
-
-install_hooks() {
-    log "Installing hooks..."
-
-    if [[ -f "$HOOKS_FILE" ]]; then
-        # Merge hooks (append sypnose hooks to existing arrays)
-        if command -v jq &>/dev/null; then
-            local tmp=$(mktemp)
-            jq -s '.[0] as $existing | .[1] as $new |
-                reduce ($new | keys[]) as $event ($existing;
-                    .[$event] = ((.[$event] // []) + $new[$event] | unique_by(.name))
-                )' "$HOOKS_FILE" "$PLUGIN_DIR/hooks/hooks.json" > "$tmp" \
-                && mv "$tmp" "$HOOKS_FILE"
-        else
-            # If no jq, only install if no hooks exist
-            cp "$PLUGIN_DIR/hooks/hooks.json" "$HOOKS_FILE"
-        fi
-    else
-        cp "$PLUGIN_DIR/hooks/hooks.json" "$HOOKS_FILE"
-    fi
-
-    # Copy hook scripts
-    mkdir -p "$CLAUDE_HOME/hooks/sypnose"
-    cp "$PLUGIN_DIR/hooks/scripts/"*.sh "$CLAUDE_HOME/hooks/sypnose/" 2>/dev/null || true
-    chmod +x "$CLAUDE_HOME/hooks/sypnose/"*.sh 2>/dev/null || true
-    debug "Hooks -> $CLAUDE_HOME/hooks/sypnose/"
-}
-
-install_agents() {
-    log "Installing agents..."
-    mkdir -p "$CLAUDE_HOME/agents"
-    cp "$PLUGIN_DIR/agents/"*.md "$CLAUDE_HOME/agents/" 2>/dev/null || true
-    log "  Agents -> $CLAUDE_HOME/agents/"
-}
-
-write_state() {
-    local state_file="$CLAUDE_HOME/plugins/sypnose/install-state.json"
-    mkdir -p "$(dirname "$state_file")"
-    cat > "$state_file" << EOF
-{
-  "version": "$VERSION",
-  "profile": "$PROFILE",
-  "installed_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "plugin_dir": "$PLUGIN_DIR",
-  "components": {
-    "mcp": true,
-    "rules": $([ "$PROFILE" != "minimal" ] || echo true && echo true),
-    "skills": $([ "$PROFILE" = "full" ] || [ "$PROFILE" = "dev" ] && echo true || echo false),
-    "hooks": $([ "$PROFILE" = "full" ] || [ "$PROFILE" = "dev" ] && echo true || echo false),
-    "agents": $([ "$PROFILE" = "full" ] && echo true || echo false)
-  }
-}
+        cat > "$mcp_file" << EOF
+{ "mcpServers": { "sypnose": $sypnose_json } }
 EOF
-    debug "State -> $state_file"
+    fi
+    ok "MCP registered: sypnose (via .mcp.json)"
+}
+
+# ── Step 2: Skills ───────────────────────────────────────────
+install_skills() {
+    echo "  ── Skills ──────────────────────────────────"
+
+    for skill in sypnose graphify bios; do
+        local dest="$SKILLS_DIR/$skill/SKILL.md"
+        mkdir -p "$(dirname "$dest")"
+
+        if has_local && [[ -f "$SCRIPT_DIR/skills/$skill/SKILL.md" ]]; then
+            cp "$SCRIPT_DIR/skills/$skill/SKILL.md" "$dest"
+            ok "/$skill installed (local)"
+        elif download "$REPO/skills/$skill/SKILL.md" "$dest"; then
+            ok "/$skill installed (remote)"
+        else
+            err "/$skill FAILED"
+        fi
+    done
+}
+
+# ── Step 3: Rules ────────────────────────────────────────────
+install_rules() {
+    echo "  ── Rules ───────────────────────────────────"
+    mkdir -p "$RULES_DIR"
+    local count=0
+
+    for rule in 00-memory-protocol.md 01-verification.md 02-sypnose-tools.md \
+                03-worker-delegation.md 04-subagent-delegation.md \
+                05-writing-plans.md 06-iron-laws.md; do
+        local dest="$RULES_DIR/$rule"
+        if has_local && [[ -f "$SCRIPT_DIR/rules/$rule" ]]; then
+            cp "$SCRIPT_DIR/rules/$rule" "$dest"; ((count++))
+        elif download "$REPO/rules/$rule" "$dest"; then
+            ((count++))
+        fi
+    done
+    ok "$count rules installed"
+}
+
+# ── Step 4: Agents ───────────────────────────────────────────
+install_agents() {
+    echo "  ── Agents ──────────────────────────────────"
+    mkdir -p "$AGENTS_DIR"
+    local count=0
+
+    for agent in architect.md developer.md verifier.md researcher.md; do
+        local dest="$AGENTS_DIR/$agent"
+        if has_local && [[ -f "$SCRIPT_DIR/agents/$agent" ]]; then
+            cp "$SCRIPT_DIR/agents/$agent" "$dest"; ((count++))
+        elif download "$REPO/agents/$agent" "$dest"; then
+            ((count++))
+        fi
+    done
+    ok "$count agents installed"
+}
+
+# ── Step 5: Hooks ────────────────────────────────────────────
+install_hooks() {
+    echo "  ── Hooks ───────────────────────────────────"
+    local hooks_file="$CLAUDE_HOME/hooks.json"
+    local scripts_dir="$CLAUDE_HOME/hooks/sypnose"
+    mkdir -p "$scripts_dir"
+
+    # hooks.json
+    if [[ ! -f "$hooks_file" ]]; then
+        if has_local && [[ -f "$SCRIPT_DIR/hooks/hooks.json" ]]; then
+            cp "$SCRIPT_DIR/hooks/hooks.json" "$hooks_file"
+        else
+            download "$REPO/hooks/hooks.json" "$hooks_file" || true
+        fi
+    fi
+
+    # hook scripts
+    for script in session-start.sh pre-compact.sh stop.sh; do
+        if has_local && [[ -f "$SCRIPT_DIR/hooks/scripts/$script" ]]; then
+            cp "$SCRIPT_DIR/hooks/scripts/$script" "$scripts_dir/$script"
+        else
+            download "$REPO/hooks/scripts/$script" "$scripts_dir/$script" || true
+        fi
+    done
+    chmod +x "$scripts_dir"/*.sh 2>/dev/null || true
+    ok "3 hooks installed"
+}
+
+# ── Verify ───────────────────────────────────────────────────
+verify() {
+    echo ""
+    echo "  ── Verification ────────────────────────────"
+    local pass=0 fail=0
+
+    # MCP
+    if [[ -f "$CLAUDE_HOME/.mcp.json" ]] && grep -q "sypnose" "$CLAUDE_HOME/.mcp.json"; then
+        ok "MCP config: OK"; ((pass++))
+    else err "MCP config: MISSING"; ((fail++)); fi
+
+    # Skill
+    if [[ -f "$SKILLS_DIR/sypnose/SKILL.md" ]]; then
+        local lines=$(wc -l < "$SKILLS_DIR/sypnose/SKILL.md")
+        ok "/sypnose skill: OK ($lines lines)"; ((pass++))
+    else err "/sypnose skill: MISSING"; ((fail++)); fi
+
+    # Rules
+    local rc=$(find "$RULES_DIR" -name "*.md" 2>/dev/null | wc -l)
+    if [[ $rc -ge 5 ]]; then ok "Rules: OK ($rc files)"; ((pass++))
+    else err "Rules: MISSING ($rc files)"; ((fail++)); fi
+
+    # Agents
+    local ac=$(find "$AGENTS_DIR" -name "*.md" 2>/dev/null | wc -l)
+    if [[ $ac -ge 3 ]]; then ok "Agents: OK ($ac files)"; ((pass++))
+    else warn "Agents: $ac files"; ((fail++)); fi
+
+    echo ""
+    if [[ $fail -eq 0 ]]; then
+        echo "  ╔═══════════════════════════════════════════╗"
+        echo "  ║  ALL $pass CHECKS PASSED                      ║"
+        echo "  ║                                           ║"
+        echo "  ║  Restart Claude Code to activate.         ║"
+        echo "  ║  Then type /sypnose to get started.       ║"
+        echo "  ╚═══════════════════════════════════════════╝"
+    else
+        echo "  ╔═══════════════════════════════════════════╗"
+        echo "  ║  $fail CHECKS FAILED — see errors above       ║"
+        echo "  ╚═══════════════════════════════════════════╝"
+    fi
+    echo ""
 }
 
 # ── Main ─────────────────────────────────────────────────────
-log "═══════════════════════════════════════════"
-log " SYPNOSE v$VERSION — Installing ($PROFILE)"
-log "═══════════════════════════════════════════"
-log ""
-
-# Always install MCP (core of everything)
+banner
 install_mcp
 
-# Profile-based components
 case "$PROFILE" in
-    minimal)
-        install_rules
-        ;;
-    dev)
-        install_rules
-        install_skills
-        install_hooks
-        ;;
-    server)
-        install_rules
-        install_hooks
-        ;;
     full)
-        install_rules
         install_skills
-        install_hooks
+        install_rules
         install_agents
+        install_hooks
         ;;
-    *)
-        log "Unknown profile: $PROFILE (use: full|minimal|dev|server)"
-        exit 1
+    minimal)
+        install_skills
+        install_rules
         ;;
 esac
 
-write_state
-
-log ""
-log "═══════════════════════════════════════════"
-log " INSTALLED SUCCESSFULLY"
-log "═══════════════════════════════════════════"
-log ""
-log " MCP: sypnose (14 tools via HTTP)"
-log " Rules: $RULES_DIR"
-[[ "$PROFILE" == "full" || "$PROFILE" == "dev" ]] && log " Skills: $SKILLS_DIR/ (invoke with /sypnose, /graphify, etc.)"
-[[ "$PROFILE" == "full" || "$PROFILE" == "dev" || "$PROFILE" == "server" ]] && log " Hooks: $HOOKS_FILE"
-[[ "$PROFILE" == "full" ]] && log " Agents: $CLAUDE_HOME/agents/"
-log ""
-log " Next: restart Claude Code to activate."
-log ""
+verify
