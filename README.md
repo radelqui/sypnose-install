@@ -1,6 +1,8 @@
 # Sypnose — Universal Claude Code Plugin
 
-One command. Zero dependencies. 14 AI tools + 8 skills + 7 rules + 4 agents + 3 hooks.
+One command. Zero dependencies. `/sypnose` = everything.
+
+14 MCP tools + 3 skills + 7 rules + 4 agents + 3 hooks.
 
 ## Install (ANY Claude Code, ANY OS)
 
@@ -15,7 +17,26 @@ git clone https://github.com/radelqui/sypnose-install.git $env:USERPROFILE\.clau
 cd $env:USERPROFILE\.claude\plugins\sypnose; .\install.ps1
 ```
 
+## After Install
+
+Type `/sypnose` in Claude Code. That's it. Everything is there:
+- 6-phase protocol (read, plan, approve, dispatch, verify, save)
+- 13 iron laws (Boris + Karpathy + Superpowers)
+- Worker dispatch (claw-dispatch JSON with waves + verification)
+- Subagent execution (fresh per task + two-stage review)
+- TDD plans (bite-sized, no placeholders)
+- Multi-tier verification (evidence before claims)
+- 10 advanced patterns (squad mode, competing hypotheses, batch fan-out...)
+- 14 MCP tools reference
+
 ## What You Get
+
+### `/sypnose` — The Unified Command (v4)
+
+ONE command that includes EVERYTHING: plan creation, execution protocols,
+worker dispatch, subagent management, verification, and all 13 iron laws.
+
+Previously split across 8 separate skills, now unified in a single invocation.
 
 ### 14 MCP Tools (HTTP native — NO Node.js)
 
@@ -36,19 +57,13 @@ cd $env:USERPROFILE\.claude\plugins\sypnose; .\install.ps1
 | `channel_status` | Hub health |
 | `channel_publish` | Send message to agents |
 
-### 8 Skills
+### 3 Skills
 
 | Skill | Trigger | Description |
 |-------|---------|-------------|
-| `/sypnose` | crear plan, dispatch, wave | Full Sypnose SM protocol v3 (Boris + Karpathy + Iron Laws) |
-| `/sypnose-execute` | ejecutar | Architect execution protocol — workers, never direct code |
-| `/sypnose-create-plan` | crear dispatch | Create and validate claw-dispatch JSON for workers |
+| `/sypnose` | plan, execute, dispatch, verify | **UNIFIED** — 6 phases, 13 laws, workers, subagents, verification, TDD plans |
 | `/graphify` | `/graphify` | Any input to knowledge graph (code, docs, papers, images, video) |
 | `/bios` | `/bios` | Agent identity system via KB |
-| `verification-before-completion` | before claiming done | Evidence before assertions, always |
-| `subagent-driven-development` | executing with subagents | Fresh subagent per task + two-stage review |
-| `writing-plans` | writing implementation plans | Bite-sized TDD plans with zero placeholders |
-| `executing-plans` | executing existing plans | Load plan, review, execute, verify |
 
 ### 7 Rules
 
