@@ -11,10 +11,10 @@
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
-VERSION="2.0.0"
+VERSION="7.1.0"
 REPO="https://raw.githubusercontent.com/radelqui/sypnose-install/main"
-MCP_URL="http://62.171.147.46:18900/mcp"
-MCP_KEY="21ff9b26fd454001328aaf60774f332d45138112f689af3a9b34de3dc5845589"
+MCP_URL="${SYPNOSE_URL:-https://mcp.sypnose.com/mcp}"
+MCP_KEY="${SYPNOSE_KEY:-}"   # NUNCA hardcodear la key. Se pasa por env o --key.
 
 # ── Paths ────────────────────────────────────────────────────
 CLAUDE_HOME="${HOME}/.claude"
@@ -28,7 +28,9 @@ PROFILE="full"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --profile|-p) PROFILE="$2"; shift 2 ;;
-        --help|-h) echo "Usage: install.sh [--profile full|minimal]"; exit 0 ;;
+        --key|-k) MCP_KEY="$2"; shift 2 ;;
+        --url|-u) MCP_URL="$2"; shift 2 ;;
+        --help|-h) echo "Usage: install.sh [--profile full|minimal] [--key SYPNOSE_KEY] [--url MCP_URL]"; exit 0 ;;
         *) shift ;;
     esac
 done
@@ -74,8 +76,8 @@ install_mcp() {
         fi
     fi
 
-    # Fallback: write .mcp.json
-    local mcp_file="$CLAUDE_HOME/.mcp.json"
+    # Fallback: scope user real de Claude Code es ~/.claude.json (mcpServers)
+    local mcp_file="${HOME}/.claude.json"
     local sypnose_json='{
   "type": "http",
   "url": "'"$MCP_URL"'",
@@ -164,12 +166,32 @@ install_hooks() {
     local scripts_dir="$CLAUDE_HOME/hooks/sypnose"
     mkdir -p "$scripts_dir"
 
-    # hooks.json
-    if [[ ! -f "$hooks_file" ]]; then
-        if has_local && [[ -f "$SCRIPT_DIR/hooks/hooks.json" ]]; then
-            cp "$SCRIPT_DIR/hooks/hooks.json" "$hooks_file"
+    # hooks.json — MERGE si existe, copiar si no
+    local src_hooks="/tmp/sypnose-hooks.json"
+    if has_local && [[ -f "$SCRIPT_DIR/hooks/hooks.json" ]]; then
+        cp "$SCRIPT_DIR/hooks/hooks.json" "$src_hooks"
+    else
+        download "$REPO/hooks/hooks.json" "$src_hooks" || true
+    fi
+    if [[ -f "$src_hooks" ]]; then
+        if [[ ! -f "$hooks_file" ]]; then
+            cp "$src_hooks" "$hooks_file"
+        elif command -v python3 &>/dev/null; then
+            python3 - "$hooks_file" "$src_hooks" << 'PYEOF'
+import json, sys
+dst_f, src_f = sys.argv[1], sys.argv[2]
+dst = json.load(open(dst_f)); src = json.load(open(src_f))
+hooks = dst.setdefault("hooks", {})
+for event, entries in src.get("hooks", {}).items():
+    cur = hooks.setdefault(event, [])
+    names = {e.get("name") for e in cur if isinstance(e, dict)}
+    for e in entries:
+        if e.get("name") not in names:
+            cur.append(e)
+json.dump(dst, open(dst_f, "w"), indent=2)
+PYEOF
         else
-            download "$REPO/hooks/hooks.json" "$hooks_file" || true
+            warn "hooks.json existe y no hay python3 para merge — revisa manualmente"
         fi
     fi
 
@@ -191,9 +213,11 @@ verify() {
     echo "  ── Verification ────────────────────────────"
     local pass=0 fail=0
 
-    # MCP
-    if [[ -f "$CLAUDE_HOME/.mcp.json" ]] && grep -q "sypnose" "$CLAUDE_HOME/.mcp.json"; then
-        ok "MCP config: OK"; ((pass++))
+    # MCP (CLI primero, luego ~/.claude.json)
+    if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q "sypnose"; then
+        ok "MCP config: OK (claude CLI)"; ((pass++))
+    elif [[ -f "${HOME}/.claude.json" ]] && grep -q '"sypnose"' "${HOME}/.claude.json"; then
+        ok "MCP config: OK (~/.claude.json)"; ((pass++))
     else err "MCP config: MISSING"; ((fail++)); fi
 
     # Skill
@@ -228,8 +252,23 @@ verify() {
     echo ""
 }
 
+# ── Key check ────────────────────────────────────────────────
+require_key() {
+    if [[ -z "$MCP_KEY" ]]; then
+        if [[ -t 0 ]]; then
+            read -r -s -p "  Sypnose API key: " MCP_KEY; echo ""
+        fi
+    fi
+    if [[ -z "$MCP_KEY" ]]; then
+        err "Falta la API key. Usa: SYPNOSE_KEY=xxx bash install.sh  (o --key xxx)"
+        err "Pide tu key en: https://github.com/radelqui/sypnose-install#getting-a-key"
+        exit 1
+    fi
+}
+
 # ── Main ─────────────────────────────────────────────────────
 banner
+require_key
 install_mcp
 
 case "$PROFILE" in

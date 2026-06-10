@@ -47,7 +47,7 @@ if ($configExists) {
 
 # Servidor Sypnose 67
 Host sypnose-67
-    HostName 62.171.147.46
+    HostName ${SYPNOSE_SERVER_IP}   # server 67 — define la IP en tu entorno
     Port 2024
     User sypnose
     IdentityFile ~/.ssh/$key

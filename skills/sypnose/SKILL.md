@@ -420,7 +420,7 @@ Define agents con YAML. Cualquier harness (Claude Code, Gemini, Cursor, Codex) l
 
 ```yaml
 architect:
-  model: opus
+  model: sonnet
   role: System design, trade-offs, plans
   tools: [Read, Grep, Glob, WebSearch, kb_search, memory_search, deep_query]
   never: [Edit, Write, Bash]  # architects plan, never code
@@ -432,7 +432,7 @@ developer:
   gates: [spec-review, quality-review]  # two-stage review before merge
 
 verifier:
-  model: haiku
+  model: sonnet
   role: QA verification with evidence
   tools: [Read, Bash, Grep, Glob]
   never: [Edit, Write]  # verifiers observe, never modify
@@ -450,9 +450,9 @@ researcher:
 
 | Agent | Local (Claude Code) | Remote (claw worker) | Fallback |
 |-------|--------------------|--------------------|----------|
-| architect | opus | openai/gemini-2.5-pro | sonnet |
+| architect | sonnet | openai/gemini-2.5-pro | sonnet |
 | developer | sonnet | N/A (needs Edit/Write) | subagent local |
-| verifier | haiku | openai/gemini-2.5-flash | any fast model |
+| verifier | sonnet | openai/gemini-2.5-flash | any fast model |
 | researcher | sonnet | openai/gemini-2.5-pro | any reasoning model |
 
 Workers remotos (Gemini) solo pueden ser researcher, planner, verifier, executor-simple.
@@ -727,8 +727,14 @@ result: "resultado real (min 15 chars, con output)"
 
 ## REGISTRY
 
-Registry mantiene un inventario VIVO de las APIs del proyecto.
-Se actualiza AUTOMATICAMENTE en FASE 6 cuando un agente toca endpoints.
+Registry mantiene un inventario VIVO de las APIs y la **composicion** del proyecto
+(funciones, endpoints, tablas, servidores). Se actualiza AUTOMATICAMENTE en FASE 6
+cuando un agente toca endpoints.
+
+**Motor de grafo = `/graphify`.** `/registry` y `/graphify` son una sola pieza dentro de
+`/sypnose`: registry es el inventario + reglas; graphify es el motor que construye el grafo
+de esa composicion y lo hace VISIBLE para humanos y agentes (HTML interactivo y **Mermaid**).
+Jerarquia canonica: `/sypnose` → `/registry` → `/graphify`.
 
 ### Regla de Oro
 ```
@@ -769,9 +775,12 @@ registry search "clientes" → endpoints que tocan clientes
 registry impact "tabla X"  → que se rompe si cambio tabla X
 registry audit             → compara spec vs routes reales, detecta drift
 registry scan              → escanea routes, genera/actualiza spec
+registry graph             → /graphify --mermaid del proyecto (composicion visible)
 ```
 
-### Integracion con Graphify
+### Integracion con Graphify (motor del registry)
+
+El registry alimenta a graphify y graphify devuelve el grafo navegable:
 
 ```
 [API: GET /clientes/[id]] --calls--> [fn: getClienteFicha()]
@@ -779,6 +788,15 @@ registry scan              → escanea routes, genera/actualiza spec
 [API: POST /facturas]     --calls--> [fn: processOCR()]
 [fn: processOCR()]        --writes--> [table: facturas]
 ```
+
+**Visualizar la composicion (humanos + agentes):**
+```
+/graphify <proyecto> --mermaid      → graphify-out/graph.mmd  (diagrama Mermaid)
+/graphify <proyecto>                → grafo HTML interactivo
+registry graph                      → atajo: corre graphify --mermaid sobre el proyecto actual
+```
+El `.mmd` es texto: un humano lo pega en mermaid.live y lo ve; un agente lo parsea para
+saber que toca cada endpoint/funcion/servidor antes de un cambio (registry impact).
 
 ### Implementacion actual
 - GestoriaRD: `next-openapi-gen` escanea 297 routes + `@scalar/nextjs-api-reference` en /api-docs
@@ -863,20 +881,21 @@ Para edicion real -> subagents locales o agentes tmux.
 | Implementer mecanico | Sonnet (fast, cheap) |
 | Implementer integracion | Sonnet (standard) |
 | Spec reviewer | Sonnet |
-| Code quality reviewer | Opus (judgment) |
-| Architect | Opus |
+| Code quality reviewer | Sonnet 4.6 |
+| Architect | Sonnet 4.6 |
 
-### Modelos canonicos (v7)
+### Modelos canonicos (v7.1 — regla de Carlos)
 
-- Workers: `openai/gemini-2.5-pro` via gemini-proxy Cloud Run (max_tokens >= 1500)
-- Verifiers: `openai/gemini-2.5-flash` (max_tokens >= 700)
-- Endpoint: `https://gemini-proxy-1056902392425.us-central1.run.app`
-- Fallback: pro → flash → FAIL_LOUD (NUNCA degradar mudo)
-- **SIEMPRE prefijo `openai/`** en dispatch — sin prefijo Mithos cae a haiku default
+- **PRIMARIO en TODO (agentes, subagents, workers): `claude-sonnet-4-6`.** Siempre que se
+  pueda, todo corre en sonnet 4.6. Requiere `ANTHROPIC_AUTH_TOKEN` en el daemon claw.
+- Fallback SOLO si sonnet 4.6 no esta disponible: `openai/gemini-2.5-pro` (workers) /
+  `openai/gemini-2.5-flash` (verifiers) via gemini-proxy Cloud Run.
+  Endpoint: `https://gemini-proxy-1056902392425.us-central1.run.app`
+- Orden: claude-sonnet-4-6 → gemini-2.5-pro → gemini-2.5-flash → FAIL_LOUD (NUNCA degradar mudo)
+- **Si usas un modelo Gemini de fallback, prefijo `openai/`** — sin prefijo Mithos cae a haiku default
 
 ### NO USAR (DEPRECATED)
 - `cerebras-qwen3-235b` — key expired, cuelga
-- `claude-sonnet-4-6` en claw — falta ANTHROPIC_AUTH_TOKEN en daemon
 - `gemini-2.5-flash` sin prefix `openai/` — rechazado
 - `kimi-k2`, `kimi-k2-0905`, `kimi-k2.6` — DEPRECATED en distribucion v7
 - `deepseek-v3.2`, `deepseek-r1`, `cerebras-*`, `qwen*`, `gpt-oss-*`, `moonshotai/*`, `llama-*`

@@ -3,10 +3,18 @@
 $ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$VERSION  = "2.1.0"
+$VERSION  = "7.1.0"
 $REPO_RAW = "https://raw.githubusercontent.com/radelqui/sypnose-install/main"
-$MCP_URL  = "http://62.171.147.46:18900/mcp"
-$MCP_KEY  = "21ff9b26fd454001328aaf60774f332d45138112f689af3a9b34de3dc5845589"
+$MCP_URL  = if ($env:SYPNOSE_URL) { $env:SYPNOSE_URL } else { "https://mcp.sypnose.com/mcp" }
+$MCP_KEY  = $env:SYPNOSE_KEY   # NUNCA hardcodear. Se pasa por $env:SYPNOSE_KEY o prompt.
+if (-not $MCP_KEY) {
+    $sec = Read-Host "  Sypnose API key" -AsSecureString
+    $MCP_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+}
+if (-not $MCP_KEY) {
+    Write-Host "  [x] Falta la API key. Usa: `$env:SYPNOSE_KEY='xxx'; irm .../install.ps1 | iex" -ForegroundColor Red
+    exit 1
+}
 $CLAUDE   = Join-Path $env:USERPROFILE ".claude"
 
 Write-Host ""
@@ -44,7 +52,7 @@ if (Get-Command claude -ErrorAction SilentlyContinue) {
 }
 
 if (!$mcpDone) {
-    $mcpFile = Join-Path $CLAUDE ".mcp.json"
+    $mcpFile = Join-Path $env:USERPROFILE ".claude.json"   # scope user real de Claude Code
     $entry = @{ type="http"; url=$MCP_URL; headers=@{ Authorization="Bearer $MCP_KEY" } }
     if (Test-Path $mcpFile) {
         $j = Get-Content $mcpFile -Raw | ConvertFrom-Json
@@ -93,20 +101,59 @@ Write-Host " $agentOk/4" -ForegroundColor $(if($agentOk -eq 4){"Green"}else{"Yel
 
 # ── 5. Hooks ─────────────────────────────────────────────────
 Write-Host "  Hooks..." -ForegroundColor DarkGray -NoNewline
-$hooksFile = Join-Path $CLAUDE "hooks.json"
-if (!(Test-Path $hooksFile)) { dl "hooks/hooks.json" $hooksFile | Out-Null }
 $hooksDir = Join-Path $CLAUDE "hooks\sypnose"
 New-Item -ItemType Directory -Path $hooksDir -Force | Out-Null
-foreach ($h in @("session-start.sh","pre-compact.sh","stop.sh")) {
-    dl "hooks/scripts/$h" (Join-Path $hooksDir $h) | Out-Null
+$hasBash = [bool](Get-Command bash -ErrorAction SilentlyContinue)
+if ($hasBash) {
+    $hooksSrc = "hooks/hooks.json"
+    foreach ($h in @("session-start.sh","pre-compact.sh","stop.sh")) {
+        dl "hooks/scripts/$h" (Join-Path $hooksDir $h) | Out-Null
+    }
+} else {
+    # Sin Git Bash: usar hooks nativos PowerShell
+    $hooksSrc = "hooks/hooks.windows.json"
+    foreach ($h in @("session-start.ps1","pre-compact.ps1","stop.ps1")) {
+        dl "hooks/scripts/$h" (Join-Path $hooksDir $h) | Out-Null
+    }
 }
-Write-Host " OK" -ForegroundColor Green
+$hooksFile = Join-Path $CLAUDE "hooks.json"
+$tmpHooks  = Join-Path $env:TEMP "sypnose-hooks.json"
+dl $hooksSrc $tmpHooks | Out-Null
+if (Test-Path $tmpHooks) {
+    if (!(Test-Path $hooksFile)) {
+        Copy-Item $tmpHooks $hooksFile -Force
+    } else {
+        # MERGE: añadir solo hooks sypnose que falten
+        $dst = Get-Content $hooksFile -Raw | ConvertFrom-Json
+        $src = Get-Content $tmpHooks  -Raw | ConvertFrom-Json
+        if (-not $dst.hooks) { $dst | Add-Member -NotePropertyName hooks -NotePropertyValue (@{}) -Force }
+        foreach ($prop in $src.hooks.PSObject.Properties) {
+            $event = $prop.Name
+            $existing = @()
+            if ($dst.hooks.PSObject.Properties[$event]) { $existing = @($dst.hooks.$event) }
+            $names = $existing | ForEach-Object { $_.name }
+            foreach ($e in $prop.Value) {
+                if ($names -notcontains $e.name) { $existing += $e }
+            }
+            $dst.hooks | Add-Member -NotePropertyName $event -NotePropertyValue $existing -Force
+        }
+        $dst | ConvertTo-Json -Depth 10 | Set-Content $hooksFile -Encoding UTF8
+    }
+}
+Write-Host " OK $(if(-not $hasBash){'(modo PowerShell, sin Git Bash)'})" -ForegroundColor Green
 
 # ── Verify ───────────────────────────────────────────────────
 Write-Host ""
 $pass = 0
 
-$mcpCheck = (Test-Path (Join-Path $CLAUDE ".mcp.json")) -and ((Get-Content (Join-Path $CLAUDE ".mcp.json") -Raw) -match "sypnose")
+$userJson = Join-Path $env:USERPROFILE ".claude.json"
+$mcpCheck = $false
+if (Get-Command claude -ErrorAction SilentlyContinue) {
+    try { $mcpCheck = ((& claude mcp list 2>$null) -join "`n") -match "sypnose" } catch {}
+}
+if (-not $mcpCheck -and (Test-Path $userJson)) {
+    $mcpCheck = (Get-Content $userJson -Raw) -match '"sypnose"'
+}
 if ($mcpCheck) { Write-Host "  [+] MCP: OK" -ForegroundColor Green; $pass++ }
 else { Write-Host "  [x] MCP: FAIL" -ForegroundColor Red }
 

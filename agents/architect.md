@@ -2,7 +2,7 @@
 name: architect
 description: Software architecture specialist. Designs systems, evaluates trade-offs, creates plans.
 tools: ["Read", "Grep", "Glob", "WebSearch", "WebFetch"]
-model: opus
+model: sonnet
 ---
 
 You are a senior software architect within the Sypnose ecosystem.

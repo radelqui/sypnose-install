@@ -1,97 +1,96 @@
 # Sypnose
 
-Universal plugin for Claude Code. One command installs everything.
+Universal plugin for Claude Code & Claude Desktop. One command installs everything.
+
+/ `sypnose` → `/registry` → `/graphify` — orchestration, live API/composition registry, and a knowledge-graph engine (HTML + **Mermaid**) so humans and agents can see how any function or server connects.
 
 ## Install
 
+You need a Sypnose API key (never hardcoded — you pass it at install time).
+
 **Linux / macOS / WSL:**
 ```bash
-curl -sf https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.sh | bash
+SYPNOSE_KEY=your-key bash -c "$(curl -sfL https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.sh)"
+# or, after git clone:
+SYPNOSE_KEY=your-key ./install.sh        # also: ./install.sh --key your-key
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.ps1 | iex
+$env:SYPNOSE_KEY="your-key"; irm https://raw.githubusercontent.com/radelqui/sypnose-install/main/install.ps1 | iex
 ```
-
-**Or clone and install locally:**
-```bash
-git clone https://github.com/radelqui/sypnose-install.git && cd sypnose-install && ./install.sh
-```
+If you don't pass the key, the installer prompts for it securely.
 
 Restart Claude Code after install. Type `/sypnose` to start.
+
+### Claude Desktop (no CLI)
+
+Claude Desktop uses the same MCP over HTTPS — add it as a remote connector:
+
+1. Settings → Connectors → Add custom connector.
+2. URL: `https://mcp.sypnose.com/mcp`
+3. Header: `Authorization: Bearer your-key`
+4. Save and restart Desktop. The 14 Sypnose tools appear in the tool list.
+
+The skills/rules/agents/hooks part is Claude Code only; on Desktop you get the MCP tools (KB, Memory Palace, Knowledge Graph, LightRAG, Channel).
 
 ## What gets installed
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| MCP Server | 1 | 14 tools via HTTP (zero dependencies) |
-| `/sypnose` | 1 skill | Unified system: 6 phases, 13 laws, workers, subagents, verification |
-| `/graphify` | 1 skill | Knowledge graph builder (code, docs, papers) |
+| MCP Server | 1 | 14 tools via HTTPS (zero local deps) |
+| `/sypnose` | 1 skill | Unified system: 6 phases, 13 laws, workers, subagents, verification, **registry+graphify** |
+| `/registry` | in `/sypnose` | Live API/composition inventory; engine = `/graphify` |
+| `/graphify` | 1 skill | Knowledge-graph engine of `/registry` — HTML, **Mermaid (`--mermaid`)**, SVG, Neo4j |
 | `/bios` | 1 skill | Agent identity system |
 | Rules | 7 | Memory protocol, verification, iron laws, delegation |
-| Agents | 4 | architect (opus), developer (sonnet), verifier (haiku), researcher (sonnet) |
-| Hooks | 3 | Auto-save/restore state across sessions |
+| Agents | 4 | architect, developer, verifier, researcher — **all `model: sonnet` (Sonnet 4.6)** |
+| Hooks | 3 | Auto-save/restore state (bash + PowerShell variants) |
 
-## `/sypnose` — the unified command
+## Models
 
-Everything in one invocation:
+All agents, sub-agents and workers run on **`claude-sonnet-4-6`** whenever available.
+Gemini (`openai/gemini-2.5-pro` / `-flash`) is a declared fallback only, never the default.
 
-- **6-phase protocol**: read, plan, approve, dispatch, verify, save
-- **13 iron laws**: Boris Cherny 2026 + Karpathy 4 Principles + Superpowers
-- **Worker dispatch**: claw-dispatch JSON with waves, verification gates, model routing
-- **Subagent execution**: fresh per task, two-stage review (spec + quality)
-- **TDD plans**: bite-sized steps, no placeholders, actual code
-- **Multi-tier verification**: evidence before claims, always
-- **10 advanced patterns**: squad mode, competing hypotheses, batch fan-out, ultraplan
-- **Agent catalog**: declarative YAML definitions (works with Gemini, DeepSeek, Cursor)
-- **Prompt defense**: anti-injection baseline for all workers
-- **Instinct system**: continuous learning, pattern capture, skill promotion
+## `/registry` → `/graphify` → Mermaid
 
-## 14 MCP tools
-
-All tools connect to Sypnose cloud backend via HTTP. No local server needed.
-
-| Tool | Description |
-|------|-------------|
-| `kb_save` / `kb_read` / `kb_search` / `kb_list` / `kb_context` | Knowledge Base (persistent, cross-session) |
-| `memory_status` / `memory_search` / `memory_add` | Memory Palace (semantic memory) |
-| `memory_kg_query` / `memory_kg_add` | Knowledge Graph |
-| `deep_query` / `deep_ingest` | LightRAG (hybrid/local/global/naive search) |
-| `channel_status` / `channel_publish` | Inter-agent messaging hub |
+```
+/graphify <path> --mermaid    # graphify-out/graph.mmd — paste into mermaid.live, or let an agent parse it
+registry graph                # shortcut: graphify --mermaid on the current project
+registry impact "table X"     # what breaks if I change X (uses the graph)
+```
 
 ## Architecture
 
 ```
-Claude Code (any machine, any OS)
+Claude Code / Desktop (any machine, any OS)
     |
-    | HTTP POST (native transport, v2.1+)
+    | HTTPS POST
     v
-Sypnose Unified MCP v3.0.0
+https://mcp.sypnose.com/mcp   (nginx + TLS → 127.0.0.1:18900, server 67)
     |
     +-- KB Service (:18791)
     +-- Memory Palace (:18796)
     +-- LightRAG (:18800)
-    +-- Channel Hub (:8095)
+    +-- Channel Hub / A2A (:8095)
 ```
 
 ## Profiles
 
 ```bash
-./install.sh                    # Full (default): MCP + skills + rules + agents + hooks
+./install.sh                    # Full: MCP + skills + rules + agents + hooks
 ./install.sh --profile minimal  # MCP + skills + rules only
 ```
 
 ## Requirements
 
-- Claude Code v2.1+ (HTTP transport support)
-- That's it. No Node.js. No npm. No Python.
+- Claude Code v2.1+ (HTTP transport) or Claude Desktop (remote connector)
+- A Sypnose API key
+- No Node.js, npm, or Python on the client
 
 ## Uninstall
 
 ```bash
-claude mcp remove sypnose
-rm -rf ~/.claude/skills/{sypnose,graphify,bios}
-rm -f ~/.claude/rules/{00-memory-protocol,01-verification,02-sypnose-tools,03-worker-delegation,04-subagent-delegation,05-writing-plans,06-iron-laws}.md
-rm -f ~/.claude/agents/{architect,developer,verifier,researcher}.md
+./uninstall.sh      # Linux/macOS/WSL
+.\uninstall.ps1     # Windows
 ```
