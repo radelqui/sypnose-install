@@ -78,30 +78,31 @@ install_mcp() {
 
     # Fallback: scope user real de Claude Code es ~/.claude.json (mcpServers)
     local mcp_file="${HOME}/.claude.json"
-    local sypnose_json='{
-  "type": "http",
-  "url": "'"$MCP_URL"'",
-  "headers": { "Authorization": "Bearer '"$MCP_KEY"'" }
-}'
-
-    mkdir -p "$CLAUDE_HOME"
-    if [[ -f "$mcp_file" ]] && command -v jq &>/dev/null; then
-        jq --argjson s "$sypnose_json" '.mcpServers.sypnose = $s' "$mcp_file" > "${mcp_file}.tmp" \
-            && mv "${mcp_file}.tmp" "$mcp_file"
-    elif [[ -f "$mcp_file" ]] && command -v python3 &>/dev/null; then
-        python3 -c "
-import json
-f='$mcp_file'
-d=json.load(open(f))
-d.setdefault('mcpServers',{})['sypnose']=json.loads('$sypnose_json')
-json.dump(d,open(f,'w'),indent=2)
-"
+    if command -v python3 &>/dev/null; then
+        SYP_URL="$MCP_URL" SYP_KEY="$MCP_KEY" MCP_FILE="$mcp_file" python3 << 'PYMERGE'
+import json, os
+path = os.environ["MCP_FILE"]
+try:
+    d = json.load(open(path))
+except (FileNotFoundError, json.JSONDecodeError):
+    d = {}
+d.setdefault("mcpServers", {})["sypnose"] = {
+    "type": "http",
+    "url": os.environ["SYP_URL"],
+    "headers": {"Authorization": "Bearer " + os.environ["SYP_KEY"]},
+}
+json.dump(d, open(path, "w"), indent=2)
+PYMERGE
+        ok "MCP registered: sypnose (via .claude.json)"
     else
-        cat > "$mcp_file" << EOF
-{ "mcpServers": { "sypnose": $sypnose_json } }
-EOF
+        # Sin python3: solo crear si no existe (no arriesgar pisar config del usuario)
+        if [[ ! -f "$mcp_file" ]]; then
+            printf '{\n  "mcpServers": {\n    "sypnose": {\n      "type": "http",\n      "url": "%s",\n      "headers": { "Authorization": "Bearer %s" }\n    }\n  }\n}\n' "$MCP_URL" "$MCP_KEY" > "$mcp_file"
+            ok "MCP registered: sypnose (via .claude.json)"
+        else
+            warn "~/.claude.json existe y no hay python3 — anade sypnose manualmente o usa: claude mcp add"
+        fi
     fi
-    ok "MCP registered: sypnose (via .mcp.json)"
 }
 
 # ── Step 2: Skills ───────────────────────────────────────────
@@ -143,9 +144,9 @@ install_rules() {
                 05-writing-plans.md 06-iron-laws.md; do
         local dest="$RULES_DIR/$rule"
         if has_local && [[ -f "$SCRIPT_DIR/rules/$rule" ]]; then
-            cp "$SCRIPT_DIR/rules/$rule" "$dest"; ((count++))
+            cp "$SCRIPT_DIR/rules/$rule" "$dest"; count=$((count+1))
         elif download "$REPO/rules/$rule" "$dest"; then
-            ((count++))
+            count=$((count+1))
         fi
     done
     ok "$count rules installed"
@@ -160,9 +161,9 @@ install_agents() {
     for agent in architect.md developer.md verifier.md researcher.md; do
         local dest="$AGENTS_DIR/$agent"
         if has_local && [[ -f "$SCRIPT_DIR/agents/$agent" ]]; then
-            cp "$SCRIPT_DIR/agents/$agent" "$dest"; ((count++))
+            cp "$SCRIPT_DIR/agents/$agent" "$dest"; count=$((count+1))
         elif download "$REPO/agents/$agent" "$dest"; then
-            ((count++))
+            count=$((count+1))
         fi
     done
     ok "$count agents installed"
@@ -224,26 +225,26 @@ verify() {
 
     # MCP (CLI primero, luego ~/.claude.json)
     if command -v claude &>/dev/null && claude mcp list 2>/dev/null | grep -q "sypnose"; then
-        ok "MCP config: OK (claude CLI)"; ((pass++))
+        ok "MCP config: OK (claude CLI)"; pass=$((pass+1))
     elif [[ -f "${HOME}/.claude.json" ]] && grep -q '"sypnose"' "${HOME}/.claude.json"; then
-        ok "MCP config: OK (~/.claude.json)"; ((pass++))
-    else err "MCP config: MISSING"; ((fail++)); fi
+        ok "MCP config: OK (~/.claude.json)"; pass=$((pass+1))
+    else err "MCP config: MISSING"; fail=$((fail+1)); fi
 
     # Skill
     if [[ -f "$SKILLS_DIR/sypnose/SKILL.md" ]]; then
         local lines=$(wc -l < "$SKILLS_DIR/sypnose/SKILL.md")
-        ok "/sypnose skill: OK ($lines lines)"; ((pass++))
-    else err "/sypnose skill: MISSING"; ((fail++)); fi
+        ok "/sypnose skill: OK ($lines lines)"; pass=$((pass+1))
+    else err "/sypnose skill: MISSING"; fail=$((fail+1)); fi
 
     # Rules
     local rc=$(find "$RULES_DIR" -name "*.md" 2>/dev/null | wc -l)
-    if [[ $rc -ge 5 ]]; then ok "Rules: OK ($rc files)"; ((pass++))
-    else err "Rules: MISSING ($rc files)"; ((fail++)); fi
+    if [[ $rc -ge 5 ]]; then ok "Rules: OK ($rc files)"; pass=$((pass+1))
+    else err "Rules: MISSING ($rc files)"; fail=$((fail+1)); fi
 
     # Agents
     local ac=$(find "$AGENTS_DIR" -name "*.md" 2>/dev/null | wc -l)
-    if [[ $ac -ge 3 ]]; then ok "Agents: OK ($ac files)"; ((pass++))
-    else warn "Agents: $ac files"; ((fail++)); fi
+    if [[ $ac -ge 3 ]]; then ok "Agents: OK ($ac files)"; pass=$((pass+1))
+    else warn "Agents: $ac files"; fail=$((fail+1)); fi
 
     echo ""
     if [[ $fail -eq 0 ]]; then
