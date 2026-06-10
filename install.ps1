@@ -73,6 +73,7 @@ foreach ($s in @("sypnose","graphify","bios")) {
     $dest = Join-Path $CLAUDE "skills\$s\SKILL.md"
     if (dl "skills/$s/SKILL.md" $dest) { $skillOk++ }
 }
+dl "tools/graphify-mermaid.py" (Join-Path $CLAUDE "skills\graphify\tools\graphify-mermaid.py") | Out-Null
 Write-Host " $skillOk/3" -ForegroundColor $(if($skillOk -eq 3){"Green"}else{"Yellow"})
 
 # ── 3. Rules ─────────────────────────────────────────────────

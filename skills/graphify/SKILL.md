@@ -618,9 +618,14 @@ Reglas de generacion (para que SIEMPRE renderice y sea legible):
 - Comunidades como `subgraph "Comunidad N"` ... `end`.
 - Endpoints del registry se marcan con forma especial: `n_api_GET_clientes(["GET /clientes/:id"])`.
 
-Algoritmo:
+Implementacion real incluida: `~/.claude/skills/graphify/tools/graphify-mermaid.py`
+```
+python3 ~/.claude/skills/graphify/tools/graphify-mermaid.py graphify-out/graph.json -o graphify-out/graph.mmd --max 80
+```
+Soporta formato graphify (nodes/edges) y networkx node-link (nodes/links). Colapsa comunidades
+si supera --max. Referencia del algoritmo:
 ```python
-# graphify export mermaid  (pseudocodigo del builder)
+# graphify export mermaid  (logica del builder)
 import json, re
 g = json.load(open("graphify-out/graph.json"))
 def nid(x): return "n_" + re.sub(r'[^A-Za-z0-9_]', '_', x)

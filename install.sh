@@ -121,6 +121,15 @@ install_skills() {
             err "/$skill FAILED"
         fi
     done
+
+    # graphify-mermaid (motor Mermaid de /registry)
+    local tool_dest="$SKILLS_DIR/graphify/tools/graphify-mermaid.py"
+    if has_local && [[ -f "$SCRIPT_DIR/tools/graphify-mermaid.py" ]]; then
+        mkdir -p "$(dirname "$tool_dest")"; cp "$SCRIPT_DIR/tools/graphify-mermaid.py" "$tool_dest"
+        ok "graphify-mermaid installed (local)"
+    elif download "$REPO/tools/graphify-mermaid.py" "$tool_dest"; then
+        ok "graphify-mermaid installed (remote)"
+    fi
 }
 
 # ── Step 3: Rules ────────────────────────────────────────────
