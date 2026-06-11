@@ -13,7 +13,7 @@ set -euo pipefail
 
 VERSION="7.1.0"
 REPO="https://raw.githubusercontent.com/radelqui/sypnose-install/main"
-MCP_URL="${SYPNOSE_URL:-https://mcp.sypnose.com/mcp}"
+MCP_URL="${SYPNOSE_URL:-https://mcp.sypnose.cloud/mcp}"
 MCP_KEY="${SYPNOSE_KEY:-}"   # NUNCA hardcodear la key. Se pasa por env o --key.
 
 # ── Paths ────────────────────────────────────────────────────

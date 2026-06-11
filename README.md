@@ -28,7 +28,7 @@ Restart Claude Code after install. Type `/sypnose` to start.
 Claude Desktop uses the same MCP over HTTPS — add it as a remote connector:
 
 1. Settings → Connectors → Add custom connector.
-2. URL: `https://mcp.sypnose.com/mcp`
+2. URL: `https://mcp.sypnose.cloud/mcp`
 3. Header: `Authorization: Bearer your-key`
 4. Save and restart Desktop. The 14 Sypnose tools appear in the tool list.
 
@@ -67,7 +67,7 @@ Claude Code / Desktop (any machine, any OS)
     |
     | HTTPS POST
     v
-https://mcp.sypnose.com/mcp   (nginx + TLS → 127.0.0.1:18900, server 67)
+https://mcp.sypnose.cloud/mcp   (nginx + TLS → 127.0.0.1:18900, server 67)
     |
     +-- KB Service (:18791)
     +-- Memory Palace (:18796)

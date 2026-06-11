@@ -2,7 +2,7 @@
   "mcpServers": {
     "sypnose": {
       "type": "http",
-      "url": "https://mcp.sypnose.com/mcp",
+      "url": "https://mcp.sypnose.cloud/mcp",
       "headers": {
         "Authorization": "Bearer ${SYPNOSE_KEY}"
       }

@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 
 $VERSION  = "7.1.0"
 $REPO_RAW = "https://raw.githubusercontent.com/radelqui/sypnose-install/main"
-$MCP_URL  = if ($env:SYPNOSE_URL) { $env:SYPNOSE_URL } else { "https://mcp.sypnose.com/mcp" }
+$MCP_URL  = if ($env:SYPNOSE_URL) { $env:SYPNOSE_URL } else { "https://mcp.sypnose.cloud/mcp" }
 $MCP_KEY  = $env:SYPNOSE_KEY   # NUNCA hardcodear. Se pasa por $env:SYPNOSE_KEY o prompt.
 if (-not $MCP_KEY) {
     $sec = Read-Host "  Sypnose API key" -AsSecureString

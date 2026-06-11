@@ -6,20 +6,20 @@
 #
 # QUE HACE:
 #   1. Verifica que sypnose-unified esta vivo en 127.0.0.1:18900
-#   2. Instala nginx + certbot y publica https://mcp.sypnose.com/mcp (y /sse)
+#   2. Instala nginx + certbot y publica https://mcp.sypnose.cloud/mcp (y /sse)
 #   3. Genera NUEVA API key, la anade al servicio (key vieja sigue valida 7 dias)
 #   4. Cierra el 18900 publico en UFW (solo localhost + nginx 443)
 #   5. Configura ANTHROPIC_AUTH_TOKEN en el daemon claw (workers sonnet-4-6)
 #   6. Verificacion final completa
 #
 # REQUISITO PREVIO (manual, 1 minuto — Cloudflare):
-#   Crear registro A:  mcp.sypnose.com -> IP publica del server 67
+#   Crear registro A:  mcp.sypnose.cloud -> IP publica del server 67
 #   Modo "DNS only" (nube gris) hasta que certbot emita el certificado;
 #   despues se puede activar proxy naranja si se quiere.
 # ═══════════════════════════════════════════════════════════════
 set -euo pipefail
 
-DOMAIN="mcp.sypnose.com"
+DOMAIN="mcp.sypnose.cloud"
 BACKEND="127.0.0.1:18900"
 SVC="sypnose-unified"
 SVC_DIR="/home/shared/sypnose-mcp-unified"
